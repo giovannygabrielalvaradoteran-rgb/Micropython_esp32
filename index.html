@@ -1,0 +1,4407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ESP32 MicroPython Studio</title>
+  <script src="https://unpkg.com/blockly@11/blockly_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@11/blocks_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@11/python_compressed.js"></script>
+  <script src="https://unpkg.com/blockly@11/msg/es.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background-color: #f4f6f8; }
+    header { background-color: #1e293b; color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+    header h2 { margin: 0; font-size: 18px; }
+    .controls { display: flex; gap: 10px; align-items: center; }
+    select#boardSelect { background-color: #334155; color: white; border: 1px solid #475569; border-radius: 4px; padding: 8px 10px; font-size: 14px; }
+    button { background-color: #2563eb; color: white; border: none; padding: 10px 16px; font-size: 14px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    button:hover { background-color: #1d4ed8; }
+    button:disabled { background-color: #475569; cursor: not-allowed; }
+    #main-container { display: flex; flex: 1; height: calc(100vh - 60px); min-height: 0; }
+    #blocklyDiv { flex: 2; height: 100%; }
+    #sidePanel { flex: 1; min-width: 320px; background-color: #0f172a; display: flex; flex-direction: column; border-left: 2px solid #334155; font-family: monospace; }
+    .panel-section { flex: 1; display: flex; flex-direction: column; padding: 10px; border-bottom: 1px solid #334155; min-height: 0; }
+    .panel-section h3 { margin: 0 0 8px 0; font-size: 14px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+    pre { flex: 1; background: #020617; color: #38bdf8; padding: 10px; border-radius: 4px; overflow-y: auto; margin: 0; font-size: 13px; border: 1px solid #1e293b; white-space: pre-wrap; }
+    #consoleLog { color: #22c55e; }
+  </style>
+<base target="_blank">
+<base target="_blank">
+<base target="_blank">
+</head>
+<body>
+  <header>
+    <h2>ESP32 MicroPython Studio</h2>
+    <div class="controls">
+      <select id="boardSelect">
+        <option value="ESP32 Dev Module">ESP32 Dev Module</option>
+        <option value="ESP32-C3">ESP32-C3</option>
+        <option value="ESP32-S3">ESP32-S3</option>
+        <option value="ESP32-C6">ESP32-C6</option>
+      </select>
+      <button id="btnConectar" onclick="conectarPuerto()">🔌 Conectar ESP32</button>
+      <button id="btnDescargar" onclick="descargarBloques()">💾 Descargar Bloques</button>
+      <button id="btnCargar" onclick="document.getElementById('fileInput').click()">📂 Cargar Bloques</button>
+      <input type="file" id="fileInput" accept=".json" style="display:none" onchange="cargarBloques(event)">
+      <button id="btnSubir" onclick="subirAMicroPython()">🚀 Subir Código</button>
+    </div>
+  </header>
+  <div id="main-container">
+    <div id="blocklyDiv"></div>
+    <div id="sidePanel">
+      <div class="panel-section">
+        <h3>🐍 Código MicroPython Generado</h3>
+        <pre id="codePreview"># El código aparecerá aquí automáticamente...</pre>
+      </div>
+      <div class="panel-section">
+        <h3>
+          📟 Consola Serie / Estado
+          <button id="btnTogglePlot" onclick="alternarPlotter()" style="float:right; padding:2px 10px; font-size:11px;">📈 Graficar</button>
+        </h3>
+        <pre id="consoleLog">>> Listo para conectar con la tarjeta ESP32...</pre>
+        <canvas id="serialPlot" style="display:none; width:100%; flex:1; background:#020617; border-radius:4px; border:1px solid #1e293b;"></canvas>
+        <div id="plotLegend" style="display:none; font-size:11px; color:#94a3b8; padding-top:4px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <xml id="toolbox" style="display: none">
+    <category name="⚙️ Control" colour="#333333">
+      <block type="esp32_setup"></block>
+      <block type="esp32_loop"></block>
+      <block type="controls_if"></block>
+      <block type="controls_if"><mutation else="1"></mutation></block>
+    </category>
+    <category name="🔌 Pines Digitales" colour="#A85B5B">
+      <block type="esp32_digital_write"><field name="PIN">2</field></block>
+      <block type="esp32_digital_read"><field name="PIN">4</field></block>
+      <block type="esp32_digital_write_value"><field name="PIN">2</field></block>
+    </category>
+    <category name="📈 Analógico y PWM" colour="#8B5CA8">
+      <block type="esp32_analog_read"><field name="PIN">34</field></block>
+      <block type="esp32_pwm_write"><field name="PIN">5</field></block>
+    </category>
+    <category name="✋ Pines Táctiles (Touch)" colour="#c026d3">
+      <block type="esp32_touch_read"></block>
+      <block type="esp32_touch_touched"><field name="THRESHOLD">200</field></block>
+    </category>
+    <category name="⏱️ Tiempo" colour="#5ba5a0">
+      <block type="esp32_delay"><field name="SECONDS">1</field></block>
+      <block type="esp32_delay_ms"><field name="MS">500</field></block>
+      <block type="esp32_millis"></block>
+    </category>
+    <category name="⚡ Interrupciones y Timers" colour="#ea580c">
+      <block type="esp32_pin_irq"><field name="PIN">4</field></block>
+      <block type="esp32_timer_irq"><field name="ID">0</field><field name="PERIOD">1000</field></block>
+    </category>
+    <category name="🧵 Doble Núcleo" colour="#0369a1">
+      <block type="esp32_core1_loop"></block>
+      <block type="esp32_core_lock"></block>
+    </category>
+    <category name="💾 Almacenamiento (Archivos/SD)" colour="#0d9488">
+      <block type="esp32_sd_init"><field name="ID">1</field><field name="SCK">18</field><field name="MOSI">23</field><field name="MISO">19</field><field name="CS">5</field></block>
+      <block type="esp32_file_write"><field name="FILENAME">datos.txt</field><field name="MODE">a</field></block>
+      <block type="esp32_file_read"><field name="FILENAME">datos.txt</field></block>
+      <block type="esp32_file_exists"><field name="FILENAME">datos.txt</field></block>
+      <block type="esp32_file_delete"><field name="FILENAME">datos.txt</field></block>
+    </category>
+    <category name="🔋 Energía y Deep Sleep" colour="#65a30d">
+      <block type="esp32_deep_sleep_ms"><field name="MS">10000</field></block>
+      <block type="esp32_deep_sleep_pin_wake"><field name="PIN">33</field></block>
+      <block type="esp32_woke_from_sleep"></block>
+    </category>
+    <category name="📡 Comunicación" colour="#a5825b">
+      <block type="esp32_print"></block>
+      <block type="esp32_wifi_connect"><field name="SSID">MiRedWiFi</field><field name="PASS">MiClave123</field></block>
+      <block type="esp32_wifi_get_ip"></block>
+    </category>
+    <category name="📶 Bluetooth BLE" colour="#3b82f6">
+      <block type="esp32_ble_init"><field name="NAME">ESP32-BLE</field></block>
+      <block type="esp32_ble_advertise"></block>
+      <block type="esp32_ble_create_service"><field name="UUID">0x181A</field></block>
+      <block type="esp32_ble_create_characteristic"><field name="UUID">0x2A6E</field><field name="PROPS">0x02|0x10</field></block>
+      <block type="esp32_ble_write_char"><field name="UUID">0x2A6E</field></block>
+      <block type="esp32_ble_notify"><field name="UUID">0x2A6E</field></block>
+      <block type="esp32_ble_read_char"><field name="UUID">0x2A6E</field></block>
+      <block type="esp32_ble_ms_since_write"><field name="UUID">0x2A6E</field></block>
+      <block type="esp32_ble_scan"></block>
+      <block type="esp32_ble_stop_scan"></block>
+    </category>
+    <category name="📡 ESP-NOW" colour="#7c3aed">
+      <block type="esp32_espnow_init"></block>
+      <block type="esp32_espnow_add_peer"><field name="MAC">AA:BB:CC:DD:EE:FF</field></block>
+      <block type="esp32_espnow_send"><field name="MAC">AA:BB:CC:DD:EE:FF</field></block>
+      <block type="esp32_espnow_on_receive"></block>
+      <block type="esp32_espnow_my_mac"></block>
+    </category>
+    <category name="🌡️ Sensores Analógicos" colour="#10b981">
+      <block type="esp32_sensor_ldr"><field name="PIN">34</field></block>
+      <block type="esp32_sensor_potentiometer"><field name="PIN">35</field></block>
+      <block type="esp32_sensor_rain"><field name="PIN">32</field></block>
+      <block type="esp32_sensor_sound"><field name="PIN">33</field></block>
+      <block type="esp32_sensor_joystick"><field name="PIN_X">34</field><field name="PIN_Y">35</field><field name="PIN_BTN">25</field></block>
+      <block type="esp32_sensor_tds"><field name="PIN">32</field><field name="TEMP">25</field></block>
+    </category>
+    <category name="🔴 Sensores Digitales" colour="#ef4444">
+      <block type="esp32_sensor_pir"><field name="PIN">14</field></block>
+      <block type="esp32_sensor_sound_digital"><field name="PIN">27</field></block>
+      <block type="esp32_sensor_obstacle"><field name="PIN">26</field></block>
+      <block type="esp32_sensor_magnetic"><field name="PIN">18</field></block>
+      <block type="esp32_sensor_flame"><field name="PIN">19</field></block>
+      <block type="esp32_sensor_limit_switch"><field name="PIN">23</field></block>
+    </category>
+    <category name="🦾 Servomotores" colour="#f59e0b">
+      <block type="esp32_servo_180"><field name="PIN">13</field><field name="ANGLE">90</field></block>
+      <block type="esp32_servo_360"><field name="PIN">12</field><field name="SPEED">0</field></block>
+    </category>
+    <category name="📏 Distancia" colour="#6366f1">
+      <block type="esp32_ultrasonic"><field name="TRIG">5</field><field name="ECHO">18</field></block>
+    </category>
+    <category name="📡 Sensor Infrarrojo (IR)" colour="#f97316">
+      <block type="esp32_ir_init"><field name="PIN">15</field></block>
+      <block type="esp32_ir_has_signal"></block>
+      <block type="esp32_ir_read_code"></block>
+    </category>
+    <category name="🔗 I2C" colour="#0891b2">
+      <block type="esp32_i2c_init"><field name="SDA">21</field><field name="SCL">22</field></block>
+    </category>
+    <category name="🧭 Sensores I2C Avanzados" colour="#7c3aed">
+      <block type="esp32_vl53l0x_read"></block>
+      <block type="esp32_vl53l0x_near"><value name="THRESHOLD"><shadow type="math_number"><field name="NUM">100</field></shadow></value></block>
+      <block type="esp32_mpu6050_read"></block>
+      <block type="esp32_mpu6050_accel_x"></block>
+      <block type="esp32_mpu6050_accel_y"></block>
+      <block type="esp32_mpu6050_accel_z"></block>
+      <block type="esp32_mpu6050_accel_magnitude"></block>
+      <block type="esp32_mpu6050_gyro_x"></block>
+      <block type="esp32_mpu6050_gyro_y"></block>
+      <block type="esp32_mpu6050_gyro_z"></block>
+      <block type="esp32_tcs34725_read"></block>
+      <block type="esp32_tcs34725_red"></block>
+      <block type="esp32_tcs34725_green"></block>
+      <block type="esp32_tcs34725_blue"></block>
+      <block type="esp32_tcs34725_clear"></block>
+      <block type="esp32_hmc5883l_read"></block>
+      <block type="esp32_hmc5883l_x"></block>
+      <block type="esp32_hmc5883l_y"></block>
+      <block type="esp32_hmc5883l_z"></block>
+      <block type="esp32_hmc5883l_heading"></block>
+      <block type="esp32_ha5883_read"></block>
+      <block type="esp32_ha5883_x"></block>
+      <block type="esp32_ha5883_y"></block>
+      <block type="esp32_ha5883_z"></block>
+      <block type="esp32_ha5883_heading"></block>
+    </category>
+    <category name="🌦️ Clima y Ambiente" colour="#06b6d4">
+      <block type="esp32_dht_read"><field name="TYPE">DHT22</field><field name="PIN">4</field></block>
+      <block type="esp32_dht_temperature"><field name="TYPE">DHT22</field><field name="PIN">4</field></block>
+      <block type="esp32_dht_humidity"><field name="TYPE">DHT22</field><field name="PIN">4</field></block>
+      <block type="esp32_bmp_bme_read"><field name="TYPE">BME280</field></block>
+      <block type="esp32_bmp_bme_temperature"><field name="TYPE">BME280</field></block>
+      <block type="esp32_bmp_bme_pressure"><field name="TYPE">BME280</field></block>
+      <block type="esp32_bmp_bme_humidity"></block>
+    </category>
+    <category name="🎤 Micrófono I2S" colour="#db2777">
+      <block type="esp32_i2s_mic_init"><field name="ID">0</field><field name="SCK">14</field><field name="WS">15</field><field name="SD">32</field><field name="RATE">16000</field></block>
+      <block type="esp32_i2s_mic_read_level"></block>
+      <block type="esp32_i2s_mic_record_wav"><field name="FILENAME">grabacion.wav</field><field name="DURATION">3</field></block>
+    </category>
+    <category name="🔊 Amplificador MAX98357A" colour="#be123c">
+      <block type="esp32_max98357_init"><field name="ID">1</field><field name="BCLK">26</field><field name="WS">25</field><field name="DIN">22</field><field name="RATE">16000</field></block>
+      <block type="esp32_max98357_tone"><field name="FREQ">440</field><field name="DURATION">500</field></block>
+      <block type="esp32_max98357_play_wav"><field name="FILENAME">audio.wav</field></block>
+    </category>
+    <category name="🖥️ Pantalla OLED 128x64" colour="#0891b2">
+      <block type="esp32_oled_init"></block>
+      <block type="esp32_oled_clear"></block>
+      <block type="esp32_oled_text"><field name="X">0</field><field name="Y">0</field></block>
+      <block type="esp32_oled_show"></block>
+    </category>
+    <category name="💨 Sensores de Gas (MQ)" colour="#84cc16">
+      <block type="esp32_sensor_mq"><field name="TYPE">MQ-2</field><field name="PIN">32</field></block>
+    </category>
+    <category name="🔧 Motores DC y Pasos" colour="#dc2626">
+      <block type="esp32_motor_dc"><field name="IN1">26</field><field name="IN2">27</field><field name="EN">14</field></block>
+      <block type="esp32_stepper_stepdir"><field name="STEP">25</field><field name="DIR">26</field></block>
+      <block type="esp32_stepper_28byj"><field name="IN1">19</field><field name="IN2">18</field><field name="IN3">5</field><field name="IN4">17</field><field name="DELAY_US">2000</field></block>
+    </category>
+    <category name="💡 NeoPixel" colour="#ec4899">
+      <block type="esp32_neopixel_init"><field name="PIN">4</field><field name="COUNT">8</field></block>
+      <block type="esp32_neopixel_set"><field name="INDEX">0</field></block>
+      <block type="esp32_neopixel_fill"></block>
+      <block type="esp32_neopixel_show"></block>
+      <block type="esp32_neopixel_clear"></block>
+    </category>
+    <category name="🔀 Lógica" colour="#5b80a5">
+      <block type="logic_compare"></block>
+      <block type="logic_operation"></block>
+      <block type="logic_negate"></block>
+      <block type="logic_boolean"></block>
+    </category>
+    <category name="🔁 Bucles" colour="#5ba55b">
+      <block type="controls_repeat_ext"><value name="TIMES"><shadow type="math_number"><field name="NUM">10</field></shadow></value></block>
+      <block type="controls_whileUntil"></block>
+      <block type="controls_for">
+        <value name="FROM"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+        <value name="TO"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+        <value name="BY"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+      </block>
+    </category>
+    <category name="🔢 Matemáticas" colour="#5b67a5">
+      <block type="math_number"></block>
+      <block type="math_arithmetic"></block>
+      <block type="math_random_int"><value name="FROM"><shadow type="math_number"><field name="NUM">1</field></shadow></value><value name="TO"><shadow type="math_number"><field name="NUM">100</field></shadow></value></block>
+      <block type="math_map"><field name="IN_MIN">0</field><field name="IN_MAX">65535</field><field name="OUT_MIN">0</field><field name="OUT_MAX">100</field></block>
+      <block type="math_to_hex"></block>
+      <block type="math_from_hex"><field name="VALUE">FF</field></block>
+      <block type="math_to_bin"></block>
+      <block type="math_from_bin"><field name="VALUE">1010</field></block>
+      <block type="math_to_oct"></block>
+      <block type="math_from_oct"><field name="VALUE">77</field></block>
+    </category>
+    <category name="🔤 Texto" colour="#a55b80">
+      <block type="text"></block>
+      <block type="text_join"></block>
+    </category>
+    <category name="🧮 Variables" custom="VARIABLE" colour="#a55ba0"></category>
+    <category name="📃 Listas" colour="#5b5ba5">
+      <block type="lists_create_with">
+        <mutation items="3"></mutation>
+      </block>
+      <block type="lists_repeat">
+        <value name="NUM"><shadow type="math_number"><field name="NUM">5</field></shadow></value>
+      </block>
+      <block type="lists_length"></block>
+      <block type="lists_isEmpty"></block>
+      <block type="lists_indexOf">
+        <field name="END">FIRST</field>
+      </block>
+      <block type="lists_getIndex">
+        <mutation statement="false" at="true"></mutation>
+        <field name="MODE">GET</field>
+        <field name="WHERE">FROM_START</field>
+      </block>
+      <block type="lists_setIndex">
+        <mutation at="true"></mutation>
+        <field name="MODE">SET</field>
+        <field name="WHERE">FROM_START</field>
+      </block>
+      <block type="lists_getSublist">
+        <mutation at1="true" at2="true"></mutation>
+        <field name="WHERE1">FROM_START</field>
+        <field name="WHERE2">FROM_START</field>
+      </block>
+      <block type="lists_sort">
+        <field name="TYPE">NUMERIC</field>
+        <field name="DIRECTION">1</field>
+      </block>
+      <block type="lists_reverse"></block>
+      <block type="lists_split">
+        <mutation mode="SPLIT"></mutation>
+        <field name="MODE">SPLIT</field>
+        <value name="DELIM"><shadow type="text"><field name="TEXT">,</field></shadow></value>
+      </block>
+    </category>
+    <category name="⚙️ Funciones" custom="PROCEDURE" colour="#9a5ba5"></category>
+    <category name="🌐 Servidor Web" colour="#3b82f6">
+      <block type="esp32_web_init"><field name="PORT">80</field></block>
+      <block type="esp32_web_route"><field name="METHOD">GET</field><field name="PATH">/</field></block>
+      <block type="esp32_web_response"></block>
+      <block type="esp32_web_run"></block>
+    </category>
+    <category name="📡 WiFi AP" colour="#8b5cf6">
+      <block type="esp32_wifi_ap"><field name="SSID">ESP32-AP</field><field name="PASS">12345678</field></block>
+    </category>
+    <category name="🌍 HTTP Client" colour="#10b981">
+      <block type="esp32_http_get"><field name="URL">http://api.example.com/datos</field></block>
+      <block type="esp32_http_post"><field name="URL">http://api.example.com/datos</field></block>
+    </category>
+    <category name="📨 MQTT" colour="#f59e0b">
+      <block type="esp32_mqtt_init"><field name="SERVER">broker.hivemq.com</field><field name="PORT">1883</field><field name="CLIENT_ID">esp32_client</field></block>
+      <block type="esp32_mqtt_publish"><field name="TOPIC">casa/sala/temperatura</field></block>
+      <block type="esp32_mqtt_subscribe"><field name="TOPIC">casa/sala/luz</field></block>
+      <block type="esp32_mqtt_check"></block>
+    </category>
+    <category name="🔌 WebSocket" colour="#ec4899">
+      <block type="esp32_websocket_init"><field name="PORT">81</field></block>
+      <block type="esp32_websocket_run"></block>
+      <block type="esp32_websocket_read"></block>
+      <block type="esp32_websocket_send"></block>
+      <block type="esp32_websocket_broadcast"></block>
+    </category>
+    <category name="⏰ Tiempo de Red" colour="#06b6d4">
+      <block type="esp32_ntp_sync"><field name="SERVER">pool.ntp.org</field></block>
+      <block type="esp32_ntp_get_time"></block>
+    </category>
+  </xml>
+
+  <script>
+    let port = null;
+    let writer = null;
+
+    // ============================================
+    // DEFINICION DE BLOQUES
+    // ============================================
+
+    Blockly.Blocks["esp32_setup"] = {
+      init: function () {
+        this.appendDummyInput().appendField("⚙️ CONFIGURACION (una sola vez)");
+        this.appendStatementInput("STACK");
+        this.setColour(0);
+        this.setTooltip("Codigo que se ejecuta una sola vez al iniciar la placa.");
+        this.setDeletable(true);
+      }
+    };
+
+    Blockly.Blocks["esp32_loop"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔁 BUCLE PRINCIPAL (se repite siempre)");
+        this.appendStatementInput("STACK");
+        this.setColour(15);
+        this.setTooltip("Codigo que se repite sin parar.");
+        this.setDeletable(true);
+      }
+    };
+
+    Blockly.Blocks["esp32_digital_write"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("Escribir pin")
+          .appendField(new Blockly.FieldNumber(2, 0, 48, 1), "PIN")
+          .appendField("en")
+          .appendField(new Blockly.FieldDropdown([["ALTO (1)", "1"], ["BAJO (0)", "0"]]), "STATE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#A85B5B");
+      }
+    };
+
+    Blockly.Blocks["esp32_digital_read"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("Leer pin digital")
+          .appendField(new Blockly.FieldNumber(4, 0, 48, 1), "PIN")
+          .appendField("modo")
+          .appendField(new Blockly.FieldDropdown([
+            ["Normal", "NONE"],
+            ["Pull-Up", "UP"],
+            ["Pull-Down", "DOWN"]
+          ]), "PULL");
+        this.setOutput(true, "Boolean");
+        this.setColour("#A85B5B");
+        this.setTooltip("Lee el estado del pin. 'Normal' deja el pin flotante (usa resistencia externa si tu circuito la necesita); 'Pull-Up'/'Pull-Down' activan la resistencia interna del ESP32.");
+      }
+    };
+
+    Blockly.Blocks["esp32_digital_write_value"] = {
+      init: function () {
+        this.appendValueInput("VALUE")
+          .appendField("Escribir pin")
+          .appendField(new Blockly.FieldNumber(2, 0, 48, 1), "PIN")
+          .appendField("con valor");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#A85B5B");
+        this.setTooltip("Escribe en el pin el resultado de una variable o expresión (0/1, Verdadero/Falso), en lugar de un valor fijo ALTO/BAJO.");
+      }
+    };
+
+    Blockly.Blocks["esp32_analog_read"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("Leer pin analogico (ADC)")
+          .appendField(new Blockly.FieldNumber(34, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#8B5CA8");
+        this.setTooltip("Devuelve un valor de 0 a 65535.");
+      }
+    };
+
+Blockly.Blocks["esp32_pwm_write"] = {
+  init: function () {
+    this.appendDummyInput()
+      .appendField("PWM en pin")
+      .appendField(new Blockly.FieldNumber(5, 0, 48, 1), "PIN")
+      .appendField("frecuencia (Hz)")
+      .appendField(new Blockly.FieldNumber(1000, 1, 40000000, 1), "FREQ");
+    
+    // Cambiado a ValueInput para aceptar variables y bloques de entrada
+    this.appendValueInput("DUTY")
+      .setCheck("Number")
+      .appendField("duty (0-65535)");
+
+    this.setInputsInline(true); // Mantiene todos los campos en una sola línea horizontal
+    this.setPreviousStatement(true, null);
+    this.setNextStatement(true, null);
+    this.setColour("#8B5CA8");
+  }
+};
+
+    const TOUCH_PIN_OPTIONS = [
+      ["T0 - GPIO4", "4"],
+      ["T1 - GPIO0", "0"],
+      ["T2 - GPIO2", "2"],
+      ["T3 - GPIO15", "15"],
+      ["T4 - GPIO13", "13"],
+      ["T5 - GPIO12", "12"],
+      ["T6 - GPIO14", "14"],
+      ["T7 - GPIO27", "27"],
+      ["T8 - GPIO32", "32"],
+      ["T9 - GPIO33", "33"]
+    ];
+    const TOUCH_TOOLTIP = "⚠️ Solo funciona en placas ESP32 original (Dev Module / WROOM / WROVER). Los pines táctiles capacitivos NO existen en ESP32-S3, C3 ni C6 (esas placas no tienen ese periférico). Un valor MENOR indica que el pin fue tocado; un valor MAYOR indica que no hay contacto.";
+
+    Blockly.Blocks["esp32_touch_read"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("Leer valor táctil pin")
+          .appendField(new Blockly.FieldDropdown(TOUCH_PIN_OPTIONS), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#c026d3");
+        this.setTooltip(TOUCH_TOOLTIP);
+      }
+    };
+
+    Blockly.Blocks["esp32_touch_touched"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("¿Pin táctil")
+          .appendField(new Blockly.FieldDropdown(TOUCH_PIN_OPTIONS), "PIN")
+          .appendField("tocado? (umbral")
+          .appendField(new Blockly.FieldNumber(200, 0, 1200, 1), "THRESHOLD")
+          .appendField(")");
+        this.setOutput(true, "Boolean");
+        this.setColour("#c026d3");
+        this.setTooltip(TOUCH_TOOLTIP + " Este bloque compara la lectura contra el umbral que definas (ajústalo probando: toca el pin, mira el valor con 'Leer valor táctil', y pon un umbral entre el valor tocado y el valor en reposo).");
+      }
+    };
+
+    Blockly.Blocks["esp32_delay"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("Esperar")
+          .appendField(new Blockly.FieldNumber(1, 0, 3600), "SECONDS")
+          .appendField("segundos");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#5ba5a0");
+      }
+    };
+
+    Blockly.Blocks["esp32_delay_ms"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("Esperar")
+          .appendField(new Blockly.FieldNumber(500, 0, 3600000), "MS")
+          .appendField("milisegundos");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#5ba5a0");
+      }
+    };
+
+    Blockly.Blocks["esp32_millis"] = {
+      init: function () {
+        this.appendDummyInput().appendField("⏱️ Tiempo transcurrido (ms) desde el arranque");
+        this.setOutput(true, "Number");
+        this.setColour("#5ba5a0");
+        this.setTooltip("Devuelve los milisegundos desde que la placa se encendió (crece siempre, nunca se reinicia solo, salvo overflow después de ~12 días). Útil para medir cuánto tiempo pasó desde algo — por ejemplo, para detectar 'no llegó ningún comando nuevo en los últimos 500ms' y así detener un motor/carro por seguridad si se pierde la conexión.");
+      }
+    };
+
+    // ---------- BLOQUES INTERRUPCIONES Y TIMERS ----------
+
+    Blockly.Blocks["esp32_pin_irq"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("⚡ Cuando el pin")
+          .appendField(new Blockly.FieldNumber(4, 0, 48, 1), "PIN")
+          .appendField("cambie:")
+          .appendField(new Blockly.FieldDropdown([["Subida (LOW→HIGH)", "RISING"], ["Bajada (HIGH→LOW)", "FALLING"], ["Ambos", "BOTH"]]), "TRIGGER")
+          .appendField("modo:")
+          .appendField(new Blockly.FieldDropdown([["Pull-Up", "UP"], ["Pull-Down", "DOWN"], ["Normal", "NONE"]]), "PULL");
+        this.appendStatementInput("DO").appendField("hacer:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ea580c");
+        this.setTooltip("Colócalo en CONFIGURACION (se registra una sola vez). El código de 'hacer' se ejecuta automáticamente cuando el pin cambia, interrumpiendo el bucle principal en ese instante — no necesitas estar preguntando su valor en el bucle. Usa esto para botones que no quieres perderte, o eventos rápidos.");
+      }
+    };
+
+    Blockly.Blocks["esp32_timer_irq"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("⏱️⚡ Cada")
+          .appendField(new Blockly.FieldNumber(1000, 1, 3600000, 1), "PERIOD")
+          .appendField("ms (temporizador por hardware, ID:")
+          .appendField(new Blockly.FieldDropdown([["0", "0"], ["1", "1"], ["2", "2"], ["3", "3"]]), "ID")
+          .appendField(")");
+        this.appendStatementInput("DO").appendField("hacer:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ea580c");
+        this.setTooltip("Colócalo en CONFIGURACION (se registra una sola vez). El código de 'hacer' se ejecuta automáticamente cada X milisegundos, sin importar qué esté haciendo el bucle principal en ese momento. Usa un ID de timer distinto para cada temporizador que uses (0 a 3). Ideal para tareas periódicas exactas (parpadeo, muestreo) sin bloquear el resto del programa con 'Esperar'.");
+      }
+    };
+
+    // ---------- BLOQUES DOBLE NUCLEO ----------
+
+    Blockly.Blocks["esp32_core1_loop"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧵 Ejecutar en paralelo en el Núcleo 1:");
+        this.appendStatementInput("DO").appendField("hacer (en bucle):");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0369a1");
+        this.setTooltip("⚠️ USA COMO MÁXIMO UN BLOQUE DE ESTE TIPO en todo tu programa — MicroPython en el ESP32 solo permite UN hilo adicional (no dos). Si necesitas varias tareas en paralelo en el Núcleo 1 (ej. un servo que va y vuelve), ponlas TODAS dentro del mismo 'hacer (en bucle):', una después de otra — no uses un segundo bloque de este tipo, fallará al iniciar el segundo hilo mientras el primero sigue corriendo. Colócalo en CONFIGURACION, una sola vez. El código de 'hacer' se repite para siempre en el segundo núcleo (Núcleo 1) de la ESP32, al mismo tiempo que tu BUCLE PRINCIPAL sigue corriendo normalmente en el Núcleo 0 — como tener dos bucles principales corriendo a la vez, en paralelo de verdad (no por turnos). Útil para separar una tarea que no puede esperar (ej. leer un sensor rápido, controlar audio) de otra que sí puede tardar (ej. WiFi, pantalla). ⚠️ Solo funciona en ESP32 Dev Module y S3 (tienen 2 núcleos); NO funciona en C3 ni C6 (son de un solo núcleo, dará error al ejecutar). ⚠️ Si usas la MISMA variable desde el Núcleo 0 y el Núcleo 1 a la vez, usa el bloque 'Sección protegida' para leerla/modificarla, o podrías obtener valores mezclados o corruptos.");
+      }
+    };
+
+    Blockly.Blocks["esp32_core_lock"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔒 Sección protegida (evita conflictos entre núcleos):");
+        this.appendStatementInput("DO").appendField("hacer:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0369a1");
+        this.setTooltip("Usa esto cuando necesites leer o modificar una variable compartida entre el Núcleo 0 (bucle principal) y el Núcleo 1 (bloque 'Ejecutar en paralelo'). Mientras un núcleo está dentro de una sección protegida, el otro núcleo espera automáticamente su turno antes de entrar a SU propia sección protegida, evitando que ambos toquen la misma variable al mismo tiempo. Solo protege lo que pongas dentro de 'hacer' — el resto del código no se ve afectado. Si tu programa no comparte datos entre los dos núcleos, no necesitas este bloque.");
+      }
+    };
+
+    // ---------- BLOQUES ALMACENAMIENTO (ARCHIVOS / SD) ----------
+
+    Blockly.Blocks["esp32_sd_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💾 Inicializar tarjeta SD (SPI)  ID:")
+          .appendField(new Blockly.FieldDropdown([["1", "1"], ["2", "2"]]), "ID");
+        this.appendDummyInput()
+          .appendField("SCK:")
+          .appendField(new Blockly.FieldNumber(18, 0, 48, 1), "SCK")
+          .appendField("MOSI:")
+          .appendField(new Blockly.FieldNumber(23, 0, 48, 1), "MOSI")
+          .appendField("MISO:")
+          .appendField(new Blockly.FieldNumber(19, 0, 48, 1), "MISO")
+          .appendField("CS:")
+          .appendField(new Blockly.FieldNumber(5, 0, 48, 1), "CS");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0d9488");
+        this.setTooltip("Colócalo en CONFIGURACION. Monta la tarjeta SD en '/sd'. REQUIERE subir antes el archivo driver 'sdcard.py' (de micropython-lib) a la placa con Thonny — no viene incluido en MicroPython. Una vez montada, usa los bloques de Archivo normales con rutas que empiecen con '/sd/', por ejemplo '/sd/datos.txt', para leer/escribir en la SD en vez de en la memoria interna.");
+      }
+    };
+
+    Blockly.Blocks["esp32_file_write"] = {
+      init: function () {
+        this.appendValueInput("CONTENT")
+          .appendField("💾 Escribir archivo")
+          .appendField(new Blockly.FieldTextInput("datos.txt"), "FILENAME")
+          .appendField("contenido:");
+        this.appendDummyInput()
+          .appendField("modo:")
+          .appendField(new Blockly.FieldDropdown([["Agregar línea (a)", "a"], ["Reemplazar todo (w)", "w"]]), "MODE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0d9488");
+        this.setTooltip("Escribe en un archivo de la memoria interna (o de la SD si el nombre empieza con '/sd/'). 'Agregar línea' añade el contenido al final del archivo y agrega un salto de línea automáticamente (ideal para registrar datos). 'Reemplazar todo' borra el archivo y escribe solo el contenido dado, sin salto de línea.");
+      }
+    };
+
+    Blockly.Blocks["esp32_file_read"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💾 Leer archivo completo:")
+          .appendField(new Blockly.FieldTextInput("datos.txt"), "FILENAME");
+        this.setOutput(true, "String");
+        this.setColour("#0d9488");
+        this.setTooltip("Devuelve todo el contenido del archivo como texto. Si el archivo no existe, devuelve texto vacío en lugar de detener el programa.");
+      }
+    };
+
+    Blockly.Blocks["esp32_file_exists"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💾 ¿Existe el archivo")
+          .appendField(new Blockly.FieldTextInput("datos.txt"), "FILENAME")
+          .appendField("?");
+        this.setOutput(true, "Boolean");
+        this.setColour("#0d9488");
+        this.setTooltip("Verdadero si el archivo existe en la memoria interna o en la SD (según la ruta dada).");
+      }
+    };
+
+    Blockly.Blocks["esp32_file_delete"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💾 Eliminar archivo:")
+          .appendField(new Blockly.FieldTextInput("datos.txt"), "FILENAME");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0d9488");
+        this.setTooltip("Elimina el archivo si existe. Si no existe, no hace nada (no da error).");
+      }
+    };
+
+    // ---------- BLOQUES ENERGIA Y DEEP SLEEP ----------
+
+    Blockly.Blocks["esp32_deep_sleep_ms"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔋 Entrar en deep sleep durante")
+          .appendField(new Blockly.FieldNumber(10000, 1, 4294967295, 1), "MS")
+          .appendField("ms");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#65a30d");
+        this.setTooltip("⚠️ Apaga casi todo el ESP32 para ahorrar batería. Al despertar, la placa se REINICIA por completo y tu programa vuelve a empezar desde el inicio (no continúa donde quedó) — cualquier bloque después de este NUNCA se ejecuta. Usa 'estado_final=estado' etc. guardado en un archivo si necesitas recordar algo entre ciclos de sueño.");
+      }
+    };
+
+    Blockly.Blocks["esp32_deep_sleep_pin_wake"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔋 Configurar despertar por pin")
+          .appendField(new Blockly.FieldNumber(33, 0, 48, 1), "PIN")
+          .appendField("en nivel")
+          .appendField(new Blockly.FieldDropdown([["Alto (3.3V)", "1"], ["Bajo (GND)", "0"]]), "LEVEL");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#65a30d");
+        this.setTooltip("Colócalo ANTES del bloque 'Entrar en deep sleep', en CONFIGURACION. Permite que un pin despierte al ESP32 mientras duerme. ⚠️ Solo funciona con pines RTC GPIO en ESP32 original y S3 (ej. 32, 33, 34, 35, 25, 26, 27...); NO disponible en ESP32-C3/C6 por limitaciones de hardware.");
+      }
+    };
+
+    Blockly.Blocks["esp32_woke_from_sleep"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔋 ¿Se despertó de un deep sleep?");
+        this.setOutput(true, "Boolean");
+        this.setColour("#65a30d");
+        this.setTooltip("Verdadero si el programa arrancó porque el ESP32 despertó de un deep sleep. Falso si fue un encendido normal, un reset por botón, etc. Útil para distinguir 'primer arranque' de 'desperté a hacer una medición'.");
+      }
+    };
+
+    Blockly.Blocks["esp32_print"] = {
+      init: function () {
+        this.appendValueInput("TEXT").appendField("Imprimir en consola serie");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#a5825b");
+      }
+    };
+
+    Blockly.Blocks["esp32_wifi_connect"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("Conectar WiFi  SSID:")
+          .appendField(new Blockly.FieldTextInput("MiRedWiFi"), "SSID")
+          .appendField("Clave:")
+          .appendField(new Blockly.FieldTextInput("MiClave123"), "PASS");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#a5825b");
+        this.setTooltip("Colocalo dentro de CONFIGURACION.");
+      }
+    };
+
+    Blockly.Blocks["esp32_wifi_get_ip"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🌐 Obtener IP WiFi");
+        this.setOutput(true, "String");
+        this.setColour("#a5825b");
+        this.setTooltip("Requiere haber usado antes el bloque Conectar WiFi. Retorna la direccion IP asignada a la placa como texto.");
+      }
+    };
+
+    // ---------- BLOQUES BLUETOOTH BLE ----------
+
+    Blockly.Blocks["esp32_ble_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔵 Inicializar BLE como")
+          .appendField(new Blockly.FieldTextInput("ESP32-BLE"), "NAME");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Inicializa el modulo Bluetooth BLE. Colocalo en CONFIGURACION.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_advertise"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📢 Iniciar advertising BLE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Hace visible el dispositivo BLE.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_create_service"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📦 Crear servicio BLE UUID:")
+          .appendField(new Blockly.FieldTextInput("0x181A"), "UUID");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Crea un servicio BLE. Ejemplo: 0x181A = Entorno.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_create_characteristic"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔑 Crear caracteristica UUID:")
+          .appendField(new Blockly.FieldTextInput("0x2A6E"), "UUID");
+        this.appendDummyInput()
+          .appendField("propiedades:")
+          .appendField(new Blockly.FieldDropdown([
+            ["Leer+Notificar", "0x02|0x10"],
+            ["Solo Leer", "0x02"],
+            ["Solo Escribir", "0x04|0x08"],
+            ["Leer+Escribir", "0x02|0x04|0x08"],
+            ["Leer+Escribir+Notificar", "0x02|0x04|0x08|0x10"]
+          ]), "PROPS");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Crea una caracteristica dentro del servicio.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_write_char"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("✏️ Escribir en caracteristica UUID:")
+          .appendField(new Blockly.FieldTextInput("0x2A6E"), "UUID");
+        this.appendValueInput("VALUE").appendField("valor:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Escribe un valor en la caracteristica BLE.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_notify"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔔 Notificar caracteristica UUID:")
+          .appendField(new Blockly.FieldTextInput("0x2A6E"), "UUID");
+        this.appendValueInput("VALUE").appendField("valor:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Envia una notificacion BLE.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_read_char"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📖 Leer caracteristica BLE UUID:")
+          .appendField(new Blockly.FieldTextInput("0x2A6E"), "UUID");
+        this.setOutput(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Lee el valor actual de una caracteristica.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_ms_since_write"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("⏱️📡 Milisegundos desde la última escritura BLE en UUID:")
+          .appendField(new Blockly.FieldTextInput("0x2A6E"), "UUID");
+        this.setOutput(true, "Number");
+        this.setColour("#3b82f6");
+        this.setTooltip("A diferencia de 'Leer característica BLE' (que solo te dice el ÚLTIMO valor guardado, sin importar si es reciente o viejo), esto te dice cuánto tiempo real pasó desde la última vez que alguien ESCRIBIÓ algo nuevo en esa característica. Ideal para un 'watchdog' de seguridad: si pasó demasiado tiempo sin una escritura nueva (por ejemplo, se cortó la conexión mientras un carro/robot se movía), puedes detectarlo y detener motores por seguridad, algo que NO se puede hacer confiablemente solo con 'Leer característica BLE'. Devuelve 999999 si nunca se ha escrito nada todavía.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_scan"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔍 Escanear dispositivos BLE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Escanea dispositivos BLE cercanos.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ble_stop_scan"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🛑 Detener escaneo BLE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+      }
+    };
+
+    // ---------- BLOQUES ESP-NOW ----------
+
+    Blockly.Blocks["esp32_espnow_init"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📡 Inicializar ESP-NOW");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("Colócalo en CONFIGURACION, una sola vez. Activa el WiFi en modo estación (sin conectarse a ninguna red), fija el canal WiFi en 1 (para que dos placas sin conectar a ninguna red siempre coincidan) y prepara ESP-NOW para enviar/recibir. Si en el mismo programa TAMBIÉN usas el bloque 'Conectar WiFi' para unirte a una red real, coloca 'Conectar WiFi' DESPUÉS de este bloque — al conectar, el canal pasa a ser el del router automáticamente (y todas las placas que quieras que se vean por ESP-NOW deberán estar conectadas a esa misma red o dejarse sin conectar).");
+      }
+    };
+
+    Blockly.Blocks["esp32_espnow_add_peer"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📡 Agregar dispositivo ESP-NOW  MAC:")
+          .appendField(new Blockly.FieldTextInput("AA:BB:CC:DD:EE:FF"), "MAC");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("Colócalo en CONFIGURACION, después de 'Inicializar ESP-NOW'. Registra la dirección MAC del otro ESP32 al que le vas a enviar mensajes (usa el bloque 'Obtener mi dirección MAC' en ESA otra placa para saber cuál poner aquí). Para enviarle a TODOS los ESP32 con ESP-NOW activo sin registrar cada uno, usa la MAC especial FF:FF:FF:FF:FF:FF (broadcast).");
+      }
+    };
+
+    Blockly.Blocks["esp32_espnow_send"] = {
+      init: function () {
+        this.appendValueInput("MSG")
+          .appendField("📡 Enviar por ESP-NOW a MAC:")
+          .appendField(new Blockly.FieldTextInput("AA:BB:CC:DD:EE:FF"), "MAC")
+          .appendField("mensaje:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("La MAC destino debe haber sido agregada antes con 'Agregar dispositivo ESP-NOW' (o ser FF:FF:FF:FF:FF:FF para enviar a todos). El mensaje puede ser texto o número, se convierte a texto automáticamente. Tamaño máximo por mensaje: 250 bytes.");
+      }
+    };
+
+    Blockly.Blocks["esp32_espnow_on_receive"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📡 Cuando llegue un mensaje ESP-NOW  remitente:")
+          .appendField(new Blockly.FieldVariable("mac_remitente"), "VAR_MAC")
+          .appendField("mensaje:")
+          .appendField(new Blockly.FieldVariable("mensaje_recibido"), "VAR_MSG");
+        this.appendStatementInput("DO").appendField("hacer:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("Colócalo en CONFIGURACION (se registra una sola vez). Cada vez que otro ESP32 te mande un mensaje por ESP-NOW, este bloque se ejecuta automáticamente: guarda quién lo mandó (como texto MAC 'AA:BB:CC:...') en la primera variable, y el contenido del mensaje (como texto) en la segunda, y luego corre el código de 'hacer'.");
+      }
+    };
+
+    Blockly.Blocks["esp32_espnow_my_mac"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📡 Obtener mi dirección MAC");
+        this.setOutput(true, "String");
+        this.setColour("#7c3aed");
+        this.setTooltip("Devuelve la dirección MAC de esta placa como texto (ej. 'AA:BB:CC:DD:EE:FF'). Cópiala y colócala en el bloque 'Agregar dispositivo ESP-NOW' de LA OTRA placa para que pueda enviarte mensajes a ti.");
+      }
+    };
+
+    // ---------- BLOQUES SENSORES ANALOGICOS ----------
+
+    Blockly.Blocks["esp32_sensor_ldr"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("☀️ Leer LDR (fotorresistencia) pin:")
+          .appendField(new Blockly.FieldNumber(34, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#10b981");
+        this.setTooltip("Lee un sensor de luz LDR. Valor 0-65535.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_potentiometer"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🎚️ Leer potenciometro pin:")
+          .appendField(new Blockly.FieldNumber(35, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#10b981");
+        this.setTooltip("Lee un potenciometro. Valor 0-65535.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_rain"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌧️ Leer sensor de lluvia pin:")
+          .appendField(new Blockly.FieldNumber(32, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#10b981");
+        this.setTooltip("Lee un sensor de lluvia FC-37. Valor 0-65535.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_sound"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🎤 Leer sensor de sonido analogico pin:")
+          .appendField(new Blockly.FieldNumber(33, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#10b981");
+        this.setTooltip("Lee un sensor de sonido analogico. Valor 0-65535.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_joystick"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🕹️ Leer joystick  X pin:")
+          .appendField(new Blockly.FieldNumber(34, 0, 48, 1), "PIN_X");
+        this.appendDummyInput()
+          .appendField("Y pin:")
+          .appendField(new Blockly.FieldNumber(35, 0, 48, 1), "PIN_Y");
+        this.appendDummyInput()
+          .appendField("Boton pin:")
+          .appendField(new Blockly.FieldNumber(25, 0, 48, 1), "PIN_BTN");
+        this.setOutput(true, null);
+        this.setColour("#10b981");
+        this.setTooltip("Lee un joystick analogico. Retorna (x, y, boton).");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_tds"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💧 Leer sensor TDS (calidad del agua) pin:")
+          .appendField(new Blockly.FieldNumber(32, 0, 48, 1), "PIN")
+          .appendField("temperatura del agua (°C):")
+          .appendField(new Blockly.FieldNumber(25, -10, 100, 1), "TEMP");
+        this.setOutput(true, "Number");
+        this.setColour("#10b981");
+        this.setTooltip("Devuelve el TDS (sólidos disueltos totales) en ppm, una medida común de pureza/calidad del agua. Usa un pin ADC (32-39 recomendados). La temperatura compensa la lectura (el agua caliente conduce más electricidad) — si no mides la temperatura del agua, deja 25°C y el resultado será aproximado pero usable. Referencia orientativa: agua muy pura <50 ppm, agua potable normal 50-300 ppm, agua no apta para consumo >500 ppm.");
+      }
+    };
+
+    Blockly.Blocks["math_map"] = {
+      init: function () {
+        this.appendValueInput("VALUE").appendField("mapear valor");
+        this.appendDummyInput()
+          .appendField("desde")
+          .appendField(new Blockly.FieldNumber(0), "IN_MIN")
+          .appendField("-")
+          .appendField(new Blockly.FieldNumber(65535), "IN_MAX");
+        this.appendDummyInput()
+          .appendField("a")
+          .appendField(new Blockly.FieldNumber(0), "OUT_MIN")
+          .appendField("-")
+          .appendField(new Blockly.FieldNumber(100), "OUT_MAX");
+        this.setOutput(true, "Number");
+        this.setColour("#5b67a5");
+        this.setTooltip("Mapea un valor de un rango a otro.");
+      }
+    };
+
+    Blockly.Blocks["math_to_hex"] = {
+      init: function () {
+        this.appendValueInput("NUM").appendField("🔢 Convertir a HEX").setCheck("Number");
+        this.setOutput(true, "String");
+        this.setColour("#5b67a5");
+        this.setTooltip("Convierte un numero entero a cadena hexadecimal (ej: 255 -> '0xFF').");
+      }
+    };
+
+    Blockly.Blocks["math_from_hex"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔢 HEX a numero  valor:")
+          .appendField(new Blockly.FieldTextInput("FF"), "VALUE");
+        this.setOutput(true, "Number");
+        this.setColour("#5b67a5");
+        this.setTooltip("Convierte una cadena hexadecimal a numero entero (ej: 'FF' -> 255).");
+      }
+    };
+
+    Blockly.Blocks["math_to_bin"] = {
+      init: function () {
+        this.appendValueInput("NUM").appendField("🔢 Convertir a BIN").setCheck("Number");
+        this.setOutput(true, "String");
+        this.setColour("#5b67a5");
+        this.setTooltip("Convierte un numero entero a cadena binaria (ej: 10 -> '0b1010').");
+      }
+    };
+
+    Blockly.Blocks["math_from_bin"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔢 BIN a numero  valor:")
+          .appendField(new Blockly.FieldTextInput("1010"), "VALUE");
+        this.setOutput(true, "Number");
+        this.setColour("#5b67a5");
+        this.setTooltip("Convierte una cadena binaria a numero entero (ej: '1010' -> 10).");
+      }
+    };
+
+    Blockly.Blocks["math_to_oct"] = {
+      init: function () {
+        this.appendValueInput("NUM").appendField("🔢 Convertir a OCT").setCheck("Number");
+        this.setOutput(true, "String");
+        this.setColour("#5b67a5");
+        this.setTooltip("Convierte un numero entero a cadena octal (ej: 8 -> '0o10').");
+      }
+    };
+
+    Blockly.Blocks["math_from_oct"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔢 OCT a numero  valor:")
+          .appendField(new Blockly.FieldTextInput("77"), "VALUE");
+        this.setOutput(true, "Number");
+        this.setColour("#5b67a5");
+        this.setTooltip("Convierte una cadena octal a numero entero (ej: '77' -> 63).");
+      }
+    };
+
+    // ---------- BLOQUES SENSORES DIGITALES ----------
+
+    Blockly.Blocks["esp32_sensor_pir"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🏃 Leer sensor PIR (movimiento) pin:")
+          .appendField(new Blockly.FieldNumber(14, 0, 48, 1), "PIN");
+        this.setOutput(true, "Boolean");
+        this.setColour("#ef4444");
+        this.setTooltip("HC-SR501. Retorna True (1) si detecta movimiento, False (0) si no.");
+      }
+    };
+
+    // ---------- BLOQUES SENSOR INFRARROJO (IR) ----------
+
+    Blockly.Blocks["esp32_ir_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📡 Inicializar receptor infrarrojo (IR) pin:")
+          .appendField(new Blockly.FieldNumber(15, 0, 48, 1), "PIN");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#f97316");
+        this.setTooltip("Colocalo en CONFIGURACION. Modulo receptor IR tipo KY-022 (VS1838B/TL1838). Conecta la pata de señal (S) al pin indicado.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ir_has_signal"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📡 ¿Se recibio una señal IR?");
+        this.setOutput(true, "Boolean");
+        this.setColour("#f97316");
+        this.setTooltip("Requiere el receptor IR inicializado. Retorna True si llego un nuevo codigo desde el ultimo control remoto detectado (protocolo NEC).");
+      }
+    };
+
+    Blockly.Blocks["esp32_ir_read_code"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📡 Leer codigo IR recibido");
+        this.setOutput(true, "Number");
+        this.setColour("#f97316");
+        this.setTooltip("Requiere el receptor IR inicializado. Retorna el ultimo codigo NEC de 32 bits recibido (0 si no hay ninguno todavia).");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_sound_digital"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔊 Leer sensor de sonido digital pin:")
+          .appendField(new Blockly.FieldNumber(27, 0, 48, 1), "PIN");
+        this.setOutput(true, "Boolean");
+        this.setColour("#ef4444");
+        this.setTooltip("Salida DO. Retorna True si el ruido supera el umbral ajustado.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_obstacle"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🚧 Leer sensor de obstaculos IR pin:")
+          .appendField(new Blockly.FieldNumber(26, 0, 48, 1), "PIN");
+        this.setOutput(true, "Boolean");
+        this.setColour("#ef4444");
+        this.setTooltip("FC-51. Retorna True si detecta un objeto cercano.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_magnetic"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🧲 Leer sensor magnetico (Reed) pin:")
+          .appendField(new Blockly.FieldNumber(18, 0, 48, 1), "PIN");
+        this.setOutput(true, "Boolean");
+        this.setColour("#ef4444");
+        this.setTooltip("KY-003. Retorna True al acercar un iman.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_flame"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔥 Leer sensor de flama IR pin:")
+          .appendField(new Blockly.FieldNumber(19, 0, 48, 1), "PIN");
+        this.setOutput(true, "Boolean");
+        this.setColour("#ef4444");
+        this.setTooltip("Retorna True al detectar luz de fuego.");
+      }
+    };
+
+    Blockly.Blocks["esp32_sensor_limit_switch"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔘 Leer final de carrera pin:")
+          .appendField(new Blockly.FieldNumber(23, 0, 48, 1), "PIN");
+        this.setOutput(true, "Boolean");
+        this.setColour("#ef4444");
+        this.setTooltip("Interruptor de limite. Retorna True al presionarse.");
+      }
+    };
+
+    // ---------- BLOQUES SERVOMOTORES ----------
+
+    Blockly.Blocks["esp32_servo_180"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🦾 Servo 180° pin:")
+          .appendField(new Blockly.FieldNumber(13, 0, 48, 1), "PIN");
+        this.appendValueInput("ANGLE")
+          .appendField("angulo (0-180):")
+          .setCheck("Number");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#f59e0b");
+        this.setTooltip("Controla un servo estandar de 0 a 180 grados.");
+      }
+    };
+
+    Blockly.Blocks["esp32_servo_360"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔄 Servo 360° (continuo) pin:")
+          .appendField(new Blockly.FieldNumber(12, 0, 48, 1), "PIN");
+        this.appendValueInput("SPEED")
+          .appendField("velocidad (-100 a 100):")
+          .setCheck("Number");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#f59e0b");
+        this.setTooltip("-100=gira izquierda rapido, 0=detenido, 100=gira derecha rapido.");
+      }
+    };
+
+    // ---------- BLOQUES ULTRASONICOS ----------
+
+    Blockly.Blocks["esp32_ultrasonic"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📏 Leer ultrasonico HC-SR04  Trig pin:")
+          .appendField(new Blockly.FieldNumber(5, 0, 48, 1), "TRIG");
+        this.appendDummyInput()
+          .appendField("Echo pin:")
+          .appendField(new Blockly.FieldNumber(18, 0, 48, 1), "ECHO");
+        this.setOutput(true, "Number");
+        this.setColour("#6366f1");
+        this.setTooltip("Retorna la distancia en centímetros. Si no detecta ningún eco dentro de ~30ms (sensor desconectado, objeto fuera de rango, o falla de cableado), retorna -1 en vez de quedarse esperando para siempre — revisa ese caso en tu programa si es importante (ej. 'si distancia == -1, hacer...').");
+      }
+    };
+
+    // ---------- BLOQUES I2C ----------
+
+    Blockly.Blocks["esp32_i2c_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔗 Inicializar bus I2C  SDA:")
+          .appendField(new Blockly.FieldNumber(21, 0, 48, 1), "SDA")
+          .appendField("SCL:")
+          .appendField(new Blockly.FieldNumber(22, 0, 48, 1), "SCL");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0891b2");
+        this.setTooltip("Colocalo en CONFIGURACION antes de usar cualquier sensor I2C (VL53L0X, MPU6050, TCS34725, BMP280/BME280, pantalla OLED).");
+      }
+    };
+
+    // ---------- BLOQUES SENSORES I2C AVANZADOS ----------
+
+    Blockly.Blocks["esp32_vl53l0x_read"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📏 Leer distancia VL53L0X (laser ToF)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado y subir una vez el archivo vl53l0x.py a la placa (con Thonny). Retorna la distancia en milimetros.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_read"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧭 Leer MPU6050 (acelerometro/giroscopio)");
+        this.setOutput(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna tupla (ax, ay, az, gx, gy, gz) en g y grados/seg.");
+      }
+    };
+
+    Blockly.Blocks["esp32_tcs34725_read"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🎨 Leer color TCS34725");
+        this.setOutput(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna tupla (rojo, verde, azul, claridad).");
+      }
+    };
+
+    // ---------- BLOQUES I2C AVANZADOS: VARIABLES SEPARADAS ----------
+
+    Blockly.Blocks["esp32_vl53l0x_near"] = {
+      init: function () {
+        this.appendValueInput("THRESHOLD")
+          .appendField("📏 ¿VL53L0X detecta objeto a menos de")
+          .setCheck("Number");
+        this.appendDummyInput().appendField("mm?");
+        this.setInputsInline(true);
+        this.setOutput(true, "Boolean");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado y vl53l0x.py subido a la placa. Retorna verdadero si el objeto detectado esta mas cerca que el umbral en milimetros.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_accel_x"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📐 Aceleracion X (MPU6050)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la aceleracion en el eje X, en g.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_accel_y"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📐 Aceleracion Y (MPU6050)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la aceleracion en el eje Y, en g.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_accel_z"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📐 Aceleracion Z (MPU6050)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la aceleracion en el eje Z, en g.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_accel_magnitude"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🎯 Magnitud total de aceleracion (MPU6050)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Combina los 3 ejes en un solo valor, util para detectar golpes o movimiento brusco.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_gyro_x"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🌀 Giroscopio X (MPU6050)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la velocidad angular en el eje X, en grados/seg.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_gyro_y"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🌀 Giroscopio Y (MPU6050)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la velocidad angular en el eje Y, en grados/seg.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mpu6050_gyro_z"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🌀 Giroscopio Z (MPU6050)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la velocidad angular en el eje Z, en grados/seg.");
+      }
+    };
+
+    Blockly.Blocks["esp32_tcs34725_red"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔴 Rojo (TCS34725)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo el canal rojo (0-65535).");
+      }
+    };
+
+    Blockly.Blocks["esp32_tcs34725_green"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🟢 Verde (TCS34725)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo el canal verde (0-65535).");
+      }
+    };
+
+    Blockly.Blocks["esp32_tcs34725_blue"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔵 Azul (TCS34725)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo el canal azul (0-65535).");
+      }
+    };
+
+    Blockly.Blocks["esp32_tcs34725_clear"] = {
+      init: function () {
+        this.appendDummyInput().appendField("⚪ Claridad (TCS34725)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo el canal de claridad/luz (0-65535).");
+      }
+    };
+
+    // ---------- BLOQUES HMC5883L (BRUJULA/MAGNETOMETRO) ----------
+
+    Blockly.Blocks["esp32_hmc5883l_read"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Leer HMC5883L (magnetometro)");
+        this.setOutput(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna tupla (x, y, z) con las lecturas crudas del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_hmc5883l_x"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Campo magnetico X (HMC5883L)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo el eje X del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_hmc5883l_y"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Campo magnetico Y (HMC5883L)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo el eje Y del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_hmc5883l_z"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Campo magnetico Z (HMC5883L)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo el eje Z del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_hmc5883l_heading"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧭 Rumbo/orientacion en grados (HMC5883L)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna el rumbo tipo brujula de 0 a 360 grados (0=Norte magnetico).");
+      }
+    };
+
+    
+    // ---------- BLOQUES HA5883 (CLON QMC5883, DIR 0x0D) ----------
+
+    Blockly.Blocks["esp32_ha5883_read"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Leer HA5883 (clon QMC5883)");
+        this.setOutput(true, null);
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Direccion 0x0D. Retorna tupla (x, y, z) con las lecturas crudas del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ha5883_x"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Campo magnetico X (HA5883)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Direccion 0x0D. Retorna solo el eje X del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ha5883_y"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Campo magnetico Y (HA5883)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Direccion 0x0D. Retorna solo el eje Y del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ha5883_z"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧲 Campo magnetico Z (HA5883)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Direccion 0x0D. Retorna solo el eje Z del campo magnetico.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ha5883_heading"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧭 Rumbo/orientacion en grados (HA5883)");
+        this.setOutput(true, "Number");
+        this.setColour("#7c3aed");
+        this.setTooltip("Requiere el bus I2C inicializado. Direccion 0x0D. Retorna el rumbo tipo brujula de 0 a 360 grados (0=Norte magnetico).");
+      }
+    };
+
+// ---------- BLOQUES CLIMA Y AMBIENTE ----------
+
+    Blockly.Blocks["esp32_dht_read"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌡️💧 Leer sensor")
+          .appendField(new Blockly.FieldDropdown([["DHT11", "DHT11"], ["DHT22", "DHT22"]]), "TYPE")
+          .appendField("pin:")
+          .appendField(new Blockly.FieldNumber(4, 0, 48, 1), "PIN");
+        this.setOutput(true, null);
+        this.setColour("#06b6d4");
+        this.setTooltip("Retorna una tupla (temperatura en C, humedad en %).");
+      }
+    };
+
+    Blockly.Blocks["esp32_bmp_bme_read"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌡️📊 Leer")
+          .appendField(new Blockly.FieldDropdown([["BME280 (temp/presion/humedad)", "BME280"], ["BMP280 (temp/presion)", "BMP280"]]), "TYPE");
+        this.setOutput(true, null);
+        this.setColour("#06b6d4");
+        this.setTooltip("Requiere el bus I2C inicializado. BME280 retorna (temperatura C, presion hPa, humedad %). BMP280 retorna (temperatura C, presion hPa, None).");
+      }
+    };
+
+    // ---------- BLOQUES CLIMA: VARIABLES SEPARADAS ----------
+
+    Blockly.Blocks["esp32_dht_temperature"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌡️ Temperatura sensor")
+          .appendField(new Blockly.FieldDropdown([["DHT11", "DHT11"], ["DHT22", "DHT22"]]), "TYPE")
+          .appendField("pin:")
+          .appendField(new Blockly.FieldNumber(4, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#06b6d4");
+        this.setTooltip("Retorna solo la temperatura en C del sensor DHT, como variable separada de la humedad.");
+      }
+    };
+
+    Blockly.Blocks["esp32_dht_humidity"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💧 Humedad sensor")
+          .appendField(new Blockly.FieldDropdown([["DHT11", "DHT11"], ["DHT22", "DHT22"]]), "TYPE")
+          .appendField("pin:")
+          .appendField(new Blockly.FieldNumber(4, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#06b6d4");
+        this.setTooltip("Retorna solo la humedad en % del sensor DHT, como variable separada de la temperatura.");
+      }
+    };
+
+    Blockly.Blocks["esp32_bmp_bme_temperature"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌡️ Temperatura")
+          .appendField(new Blockly.FieldDropdown([["BME280", "BME280"], ["BMP280", "BMP280"]]), "TYPE");
+        this.setOutput(true, "Number");
+        this.setColour("#06b6d4");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la temperatura en C, como variable separada.");
+      }
+    };
+
+    Blockly.Blocks["esp32_bmp_bme_pressure"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📊 Presion")
+          .appendField(new Blockly.FieldDropdown([["BME280", "BME280"], ["BMP280", "BMP280"]]), "TYPE");
+        this.setOutput(true, "Number");
+        this.setColour("#06b6d4");
+        this.setTooltip("Requiere el bus I2C inicializado. Retorna solo la presion en hPa, como variable separada.");
+      }
+    };
+
+    Blockly.Blocks["esp32_bmp_bme_humidity"] = {
+      init: function () {
+        this.appendDummyInput().appendField("💧 Humedad BME280");
+        this.setOutput(true, "Number");
+        this.setColour("#06b6d4");
+        this.setTooltip("Requiere el bus I2C inicializado y un sensor BME280 (el BMP280 no mide humedad). Retorna la humedad en %, como variable separada.");
+      }
+    };
+
+    // ---------- BLOQUES MICROFONO I2S ----------
+
+    Blockly.Blocks["esp32_i2s_mic_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🎤 Inicializar microfono I2S INMP441  ID:")
+          .appendField(new Blockly.FieldDropdown([["0", "0"], ["1", "1"]]), "ID");
+        this.appendDummyInput()
+          .appendField("SCK:")
+          .appendField(new Blockly.FieldNumber(14, 0, 48, 1), "SCK")
+          .appendField("WS:")
+          .appendField(new Blockly.FieldNumber(15, 0, 48, 1), "WS")
+          .appendField("SD:")
+          .appendField(new Blockly.FieldNumber(32, 0, 48, 1), "SD");
+        this.appendDummyInput()
+          .appendField("frecuencia de muestreo (Hz):")
+          .appendField(new Blockly.FieldNumber(16000, 8000, 48000, 1), "RATE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#db2777");
+        this.setTooltip("Colocalo en CONFIGURACION. SCK=reloj, WS=seleccion de canal (LRCLK), SD=datos del microfono INMP441.");
+      }
+    };
+
+    Blockly.Blocks["esp32_i2s_mic_read_level"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🎤 Leer nivel de audio INMP441 (amplitud)");
+        this.setOutput(true, "Number");
+        this.setColour("#db2777");
+        this.setTooltip("Requiere el microfono I2S inicializado. Retorna la amplitud pico del ultimo bloque de audio capturado (0 a 32767).");
+      }
+    };
+
+    Blockly.Blocks["esp32_i2s_mic_record_wav"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🎤 Grabar audio a archivo:")
+          .appendField(new Blockly.FieldTextInput("grabacion.wav"), "FILENAME")
+          .appendField("durante")
+          .appendField(new Blockly.FieldNumber(3, 1, 30, 1), "DURATION")
+          .appendField("segundos");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#db2777");
+        this.setTooltip("Requiere el microfono I2S inicializado. Graba desde el INMP441 y guarda un archivo .wav (mono, 16-bit PCM) en la memoria del ESP32 — listo para reproducirlo después con el bloque 'Reproducir audio WAV' del MAX98357A. Es una llamada BLOQUEANTE: el programa se detiene aquí durante todo el tiempo indicado mientras graba. Para que suene a velocidad normal al reproducirlo, la frecuencia de muestreo configurada en 'Inicializar amplificador MAX98357A' debe ser la MISMA que la de 'Inicializar microfono I2S'. Grabaciones largas ocupan bastante memoria flash (aprox. 32 KB por segundo a 16000 Hz) — para clips cortos de voz, 3-5 segundos suele alcanzar.");
+      }
+    };
+
+    // ---------- BLOQUES AMPLIFICADOR MAX98357A (I2S) ----------
+
+    Blockly.Blocks["esp32_max98357_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔊 Inicializar amplificador MAX98357A  ID:")
+          .appendField(new Blockly.FieldDropdown([["0", "0"], ["1", "1"]]), "ID");
+        this.appendDummyInput()
+          .appendField("BCLK:")
+          .appendField(new Blockly.FieldNumber(26, 0, 48, 1), "BCLK")
+          .appendField("LRC/WS:")
+          .appendField(new Blockly.FieldNumber(25, 0, 48, 1), "WS")
+          .appendField("DIN:")
+          .appendField(new Blockly.FieldNumber(22, 0, 48, 1), "DIN");
+        this.appendDummyInput()
+          .appendField("frecuencia de muestreo (Hz):")
+          .appendField(new Blockly.FieldNumber(16000, 8000, 48000, 1), "RATE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#be123c");
+        this.setTooltip("Colocalo en CONFIGURACION. BCLK=reloj de bits, LRC/WS=seleccion de canal, DIN=datos hacia el amplificador. El pin SD del modulo (shutdown/gain) normalmente va con una resistencia a 3.3V para quedar siempre activo; si lo conectaste a un GPIO, usa el bloque 'Escribir pin' para encenderlo/apagarlo. Usa un ID de bus I2S distinto al del microfono si usas ambos a la vez (0 y 1).");
+      }
+    };
+
+    Blockly.Blocks["esp32_max98357_tone"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔊 Reproducir tono")
+          .appendField(new Blockly.FieldNumber(440, 20, 20000, 1), "FREQ")
+          .appendField("Hz durante")
+          .appendField(new Blockly.FieldNumber(500, 1, 60000, 1), "DURATION")
+          .appendField("ms");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#be123c");
+        this.setTooltip("Requiere el amplificador inicializado. Genera una onda senoidal y la reproduce por el MAX98357A durante el tiempo indicado (bloquea el programa mientras suena).");
+      }
+    };
+
+    Blockly.Blocks["esp32_max98357_play_wav"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔊 Reproducir audio WAV:")
+          .appendField(new Blockly.FieldTextInput("audio.wav"), "FILENAME");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#be123c");
+        this.setTooltip("Requiere el amplificador inicializado. Reproduce un archivo .wav ya guardado en la memoria del ESP32 (debes subirlo antes con Thonny u otra herramienta, con exactamente este nombre en la raíz). El archivo debe ser MONO, PCM de 16 bits, y con la MISMA frecuencia de muestreo configurada en 'Inicializar amplificador' (ej. 16000 Hz). En Audacity: Archivo > Exportar > WAV, Canales=Mono, Formato=16-bit PCM, y cambia la frecuencia del proyecto (abajo a la izquierda) a la misma que configuraste. Es una llamada bloqueante: el programa espera a que termine de sonar.");
+      }
+    };
+
+    // ---------- BLOQUES PANTALLA OLED 128x64 ----------
+
+    Blockly.Blocks["esp32_oled_init"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🖥️ Inicializar pantalla OLED 128x64 (SSD1306)");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0891b2");
+        this.setTooltip("Colocalo en CONFIGURACION, despues de Inicializar bus I2C.");
+      }
+    };
+
+    Blockly.Blocks["esp32_oled_clear"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🧹 OLED limpiar pantalla (buffer)");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0891b2");
+      }
+    };
+
+    Blockly.Blocks["esp32_oled_text"] = {
+      init: function () {
+        this.appendValueInput("TEXT").appendField("📝 OLED escribir texto:");
+        this.appendDummyInput()
+          .appendField("x:")
+          .appendField(new Blockly.FieldNumber(0, 0, 128, 1), "X")
+          .appendField("y:")
+          .appendField(new Blockly.FieldNumber(0, 0, 64, 1), "Y");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0891b2");
+        this.setTooltip("Escribe texto en el buffer. Usa 'OLED actualizar pantalla' para mostrarlo en la pantalla fisica.");
+      }
+    };
+
+    Blockly.Blocks["esp32_oled_show"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔄 OLED actualizar pantalla");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#0891b2");
+        this.setTooltip("Muestra en la pantalla fisica lo escrito en el buffer.");
+      }
+    };
+
+    // ---------- BLOQUES SENSORES DE GAS (MQ) ----------
+
+    Blockly.Blocks["esp32_sensor_mq"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💨 Leer sensor de gas")
+          .appendField(new Blockly.FieldDropdown([
+            ["MQ-2 (Gas/Humo/GLP)", "MQ-2"],
+            ["MQ-3 (Alcohol)", "MQ-3"],
+            ["MQ-4 (Gas Natural/Metano)", "MQ-4"],
+            ["MQ-5 (GLP/Gas Natural)", "MQ-5"],
+            ["MQ-6 (GLP/Butano)", "MQ-6"],
+            ["MQ-7 (Monoxido de Carbono)", "MQ-7"],
+            ["MQ-8 (Hidrogeno)", "MQ-8"],
+            ["MQ-9 (CO/Gas Inflamable)", "MQ-9"],
+            ["MQ-135 (Calidad de Aire/CO2)", "MQ-135"]
+          ]), "TYPE")
+          .appendField("pin:")
+          .appendField(new Blockly.FieldNumber(32, 0, 48, 1), "PIN");
+        this.setOutput(true, "Number");
+        this.setColour("#84cc16");
+        this.setTooltip("Lee el valor analogico crudo (0-65535). Para convertir a ppm se necesita calibrar segun la hoja de datos de cada sensor.");
+      }
+    };
+
+    // ---------- BLOQUES MOTORES DC Y PASOS ----------
+
+    Blockly.Blocks["esp32_motor_dc"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔧 Motor DC  IN1:")
+          .appendField(new Blockly.FieldNumber(26, 0, 48, 1), "IN1")
+          .appendField("IN2:")
+          .appendField(new Blockly.FieldNumber(27, 0, 48, 1), "IN2")
+          .appendField("EN:")
+          .appendField(new Blockly.FieldNumber(14, 0, 48, 1), "EN");
+        this.appendValueInput("SPEED")
+          .appendField("velocidad (-100 a 100):")
+          .setCheck("Number");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#dc2626");
+        this.setTooltip("Motor DC con puente H (L298N/TB6612/etc). IN1/IN2 controlan el sentido, EN controla la velocidad por PWM. Positivo=adelante, negativo=atras, 0=detenido.");
+      }
+    };
+
+    Blockly.Blocks["esp32_stepper_stepdir"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌀 Motor a pasos (driver STEP/DIR)  STEP:")
+          .appendField(new Blockly.FieldNumber(25, 0, 48, 1), "STEP")
+          .appendField("DIR:")
+          .appendField(new Blockly.FieldNumber(26, 0, 48, 1), "DIR");
+        this.appendValueInput("STEPS").appendField("pasos (+/-):").setCheck("Number");
+        this.appendValueInput("DELAY_US").appendField("retardo entre pasos (us):").setCheck("Number");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#dc2626");
+        this.setTooltip("Para drivers tipo A4988/DRV8825/TB6600. Pasos positivos giran en un sentido, negativos en el otro. Menor retardo = mas velocidad (prueba entre 500 y 2000 us).");
+      }
+    };
+
+    Blockly.Blocks["esp32_stepper_28byj"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌀 Motor a pasos 28BYJ-48 (ULN2003)  IN1:")
+          .appendField(new Blockly.FieldNumber(19, 0, 48, 1), "IN1")
+          .appendField("IN2:")
+          .appendField(new Blockly.FieldNumber(18, 0, 48, 1), "IN2");
+        this.appendDummyInput()
+          .appendField("IN3:")
+          .appendField(new Blockly.FieldNumber(5, 0, 48, 1), "IN3")
+          .appendField("IN4:")
+          .appendField(new Blockly.FieldNumber(17, 0, 48, 1), "IN4");
+        this.appendValueInput("STEPS").appendField("pasos (+/-):").setCheck("Number");
+        this.appendDummyInput()
+          .appendField("retardo entre pasos:")
+          .appendField(new Blockly.FieldNumber(2000, 100, 50000, 1), "DELAY_US")
+          .appendField("µs");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#dc2626");
+        this.setTooltip("Motor paso a paso 28BYJ-48 con placa driver ULN2003. Pasos positivos giran en un sentido, negativos en el otro. El retardo entre pasos controla la velocidad: más bajo = más rápido, pero si es demasiado bajo el motor no tiene torque suficiente y puede saltarse pasos o vibrar sin girar (entre 1500 y 5000 µs suele ser un buen rango). La posición de fase se recuerda entre llamadas, así que puedes alternar dirección sin que el motor dé un tirón brusco.");
+      }
+    };
+
+    // ---------- BLOQUES NEOPIXEL ----------
+
+    Blockly.Blocks["esp32_neopixel_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("💡 Inicializar NeoPixel  pin:")
+          .appendField(new Blockly.FieldNumber(4, 0, 48, 1), "PIN")
+          .appendField("cantidad de LEDs:")
+          .appendField(new Blockly.FieldNumber(8, 1, 1000, 1), "COUNT");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Colocalo en CONFIGURACION antes de usar los demas bloques NeoPixel.");
+      }
+    };
+
+    Blockly.Blocks["esp32_neopixel_set"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🎨 NeoPixel LED numero:")
+          .appendField(new Blockly.FieldNumber(0, 0, 999, 1), "INDEX");
+        this.appendValueInput("R").appendField("R (0-255):").setCheck("Number");
+        this.appendValueInput("G").appendField("G (0-255):").setCheck("Number");
+        this.appendValueInput("B").appendField("B (0-255):").setCheck("Number");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Asigna un color a un LED especifico (no se ve hasta usar 'NeoPixel mostrar cambios').");
+      }
+    };
+
+    Blockly.Blocks["esp32_neopixel_fill"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🌈 NeoPixel llenar todos con:");
+        this.appendValueInput("R").appendField("R (0-255):").setCheck("Number");
+        this.appendValueInput("G").appendField("G (0-255):").setCheck("Number");
+        this.appendValueInput("B").appendField("B (0-255):").setCheck("Number");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Asigna el mismo color a todos los LEDs (no se ve hasta usar 'NeoPixel mostrar cambios').");
+      }
+    };
+
+    Blockly.Blocks["esp32_neopixel_show"] = {
+      init: function () {
+        this.appendDummyInput().appendField("✨ NeoPixel mostrar cambios");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Envia los colores asignados a la tira fisica.");
+      }
+    };
+
+    Blockly.Blocks["esp32_neopixel_clear"] = {
+      init: function () {
+        this.appendDummyInput().appendField("⚫ NeoPixel apagar todos");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+      }
+    };
+
+    // ============================================
+    // GENERADORES DE CODIGO PYTHON
+    // ============================================
+
+    const ORDER_ATOMIC = (Blockly.Python.ORDER_ATOMIC !== undefined) ? Blockly.Python.ORDER_ATOMIC : 0;
+
+    // Blockly's statementToCode() ya devuelve el codigo con UN nivel de su propia
+    // indentacion nativa (generator.INDENT, 2 espacios) aplicada. Esta funcion la
+    // quita y aplica en su lugar la indentacion exacta que necesitamos (estilo
+    // 4 espacios usado en el resto de este archivo), preservando la anidacion
+    // relativa interna (ej. un "si" con su cuerpo mas adentro sigue mas adentro).
+    function _reindentBody(generator, rawBody, targetIndent) {
+      if (!rawBody || !rawBody.trim()) {
+        return targetIndent + "pass\n";
+      }
+      const native = generator.INDENT || "  ";
+      const lines = rawBody.split("\n");
+      return lines
+        .map(line => {
+          if (!line) return line;
+          const stripped = line.startsWith(native) ? line.slice(native.length) : line;
+          return targetIndent + stripped;
+        })
+        .join("\n");
+    }
+
+    // Sobrescribe el generador estándar de "cambiar [variable] por" para que
+    // genere una suma simple (variable = variable + N) en lugar del código
+    // por defecto de Blockly, que hace "import numbers" + isinstance(...).
+    // MicroPython en ESP32 no trae el módulo "numbers", así que esa
+    // importación rompía la subida del código.
+    Blockly.Python.forBlock["math_change"] = function (block, generator) {
+      const argument0 = generator.valueToCode(block, "DELTA", ORDER_ATOMIC) || "0";
+      const varName = generator.nameDB_.getName(
+        block.getFieldValue("VAR"),
+        Blockly.Names.NameType.VARIABLE
+      );
+      return `${varName} = ${varName} + ${argument0}\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_digital_write"] = function (block, generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const state = block.getFieldValue("STATE");
+      const varName = `_pin_out_${pin}`;
+      generator.definitions_[`pin_out_${pin}`] = `${varName} = Pin(${pin}, Pin.OUT)`;
+      return `${varName}.value(${state})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_digital_read"] = function (block, generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const pull = block.getFieldValue("PULL");
+      let pullArg = "";
+      if (pull === "UP") pullArg = ", Pin.PULL_UP";
+      else if (pull === "DOWN") pullArg = ", Pin.PULL_DOWN";
+      const varName = `_pin_in_${pin}`;
+      generator.definitions_[`pin_in_${pin}`] = `${varName} = Pin(${pin}, Pin.IN${pullArg})`;
+      return [`${varName}.value()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_digital_write_value"] = function (block, generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const value = generator.valueToCode(block, "VALUE", ORDER_ATOMIC) || "0";
+      const varName = `_pin_out_${pin}`;
+      generator.definitions_[`pin_out_${pin}`] = `${varName} = Pin(${pin}, Pin.OUT)`;
+      return `${varName}.value(${value})\n`;
+    };
+
+Blockly.Python.forBlock["esp32_analog_read"] = function (block, generator) {
+  generator.definitions_["import_machine_adc"] = "from machine import ADC";
+  generator.definitions_["import_machine_pin"] = "from machine import Pin";
+  const pin = block.getFieldValue("PIN");
+  
+  // Crea la instancia global con atenuación de 11 dB para leer de 0V a 3.3V
+  generator.definitions_[`adc_init_${pin}`] = `_adc_${pin} = ADC(Pin(${pin}))\n_adc_${pin}.atten(ADC.ATTN_11DB)`;
+  
+  return [`_adc_${pin}.read_u16()`, Blockly.Python.ORDER_ATOMIC];
+};
+
+Blockly.Python.forBlock["esp32_pwm_write"] = function (block, generator) {
+  var pin = block.getFieldValue("PIN");
+  var freq = block.getFieldValue("FREQ");
+  
+  // Lee la variable o bloque conectado, o usa 0 por defecto si está vacío
+  var duty = generator.valueToCode(block, "DUTY", generator.ORDER_ATOMIC) || "0";
+
+  generator.definitions_["import_machine_pwm"] = "from machine import PWM";
+  generator.definitions_["import_machine_pin"] = "from machine import Pin";
+  generator.definitions_[`pwm_init_${pin}`] = `_pwm_${pin} = PWM(Pin(${pin}), freq=${freq})`;
+
+  return `_pwm_${pin}.duty_u16(int(${duty}))\n`;
+};
+
+    Blockly.Python.forBlock["esp32_touch_read"] = function (block, generator) {
+      generator.definitions_["import_machine_touchpad"] = "from machine import TouchPad";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const varName = `_touch_${pin}`;
+      generator.definitions_[`touch_init_${pin}`] = `${varName} = TouchPad(Pin(${pin}))`;
+      return [`${varName}.read()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_touch_touched"] = function (block, generator) {
+      generator.definitions_["import_machine_touchpad"] = "from machine import TouchPad";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const threshold = block.getFieldValue("THRESHOLD");
+      const varName = `_touch_${pin}`;
+      generator.definitions_[`touch_init_${pin}`] = `${varName} = TouchPad(Pin(${pin}))`;
+      return [`(${varName}.read() < ${threshold})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_delay"] = function (block, generator) {
+      generator.definitions_["import_time"] = "import time";
+      const seconds = block.getFieldValue("SECONDS");
+      return `time.sleep(${seconds})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_delay_ms"] = function (block, generator) {
+      generator.definitions_["import_time"] = "import time";
+      const ms = block.getFieldValue("MS");
+      return `time.sleep_ms(${ms})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_millis"] = function (block, generator) {
+      generator.definitions_["import_time"] = "import time";
+      return ["time.ticks_ms()", ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES INTERRUPCIONES Y TIMERS ----------
+
+    Blockly.Python.forBlock["esp32_pin_irq"] = function (block, generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["import_micropython_irq"] = "import micropython\nmicropython.alloc_emergency_exception_buf(100)";
+      const pin = block.getFieldValue("PIN");
+      const trigger = block.getFieldValue("TRIGGER");
+      const pull = block.getFieldValue("PULL");
+      let pullArg = "";
+      if (pull === "UP") pullArg = ", Pin.PULL_UP";
+      else if (pull === "DOWN") pullArg = ", Pin.PULL_DOWN";
+      let triggerExpr = "Pin.IRQ_RISING | Pin.IRQ_FALLING";
+      if (trigger === "RISING") triggerExpr = "Pin.IRQ_RISING";
+      else if (trigger === "FALLING") triggerExpr = "Pin.IRQ_FALLING";
+
+      let body = _reindentBody(generator, generator.statementToCode(block, "DO"), "    ");
+
+      const varName = `_pin_irq_${pin}`;
+      let code = `def _irq_deferred_${pin}(arg):\n${body}`;
+      code += `def _irq_handler_${pin}(pin_obj):\n    micropython.schedule(_irq_deferred_${pin}, 0)\n`;
+      code += `${varName} = Pin(${pin}, Pin.IN${pullArg})\n`;
+      code += `${varName}.irq(trigger=${triggerExpr}, handler=_irq_handler_${pin})\n`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_timer_irq"] = function (block, generator) {
+      generator.definitions_["import_machine_timer"] = "from machine import Timer";
+      generator.definitions_["import_micropython_irq"] = "import micropython\nmicropython.alloc_emergency_exception_buf(100)";
+      const id = block.getFieldValue("ID");
+      const period = block.getFieldValue("PERIOD");
+
+      let body = _reindentBody(generator, generator.statementToCode(block, "DO"), "    ");
+
+      let code = `def _timer_deferred_${id}(arg):\n${body}`;
+      code += `def _timer_handler_${id}(t):\n    micropython.schedule(_timer_deferred_${id}, 0)\n`;
+      code += `_timer_${id} = Timer(${id})\n`;
+      code += `_timer_${id}.init(period=${period}, mode=Timer.PERIODIC, callback=_timer_handler_${id})\n`;
+      return code;
+    };
+
+    // ---------- GENERADORES DOBLE NUCLEO ----------
+
+    Blockly.Python.forBlock["esp32_core1_loop"] = function (block, generator) {
+      generator.definitions_["import_thread"] = "import _thread";
+
+      let body = _reindentBody(generator, generator.statementToCode(block, "DO"), "        ");
+
+      let code = `def _core1_loop():\n    while True:\n${body}\n`;
+      code += `try:\n    _thread.start_new_thread(_core1_loop, ())\n`;
+      code += `except OSError as _e:\n    print("No se pudo iniciar el Nucleo 1 (¿usaste dos bloques de doble nucleo? solo se permite uno):", _e)\n`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_core_lock"] = function (block, generator) {
+      generator.definitions_["import_thread"] = "import _thread";
+      generator.definitions_["core_lock_init"] = "_core_lock = _thread.allocate_lock()";
+
+      let body = _reindentBody(generator, generator.statementToCode(block, "DO"), "    ");
+
+      let code = `_core_lock.acquire()\ntry:\n${body}`;
+      code += `finally:\n    _core_lock.release()\n`;
+      return code;
+    };
+
+    // ---------- GENERADORES ALMACENAMIENTO (ARCHIVOS / SD) ----------
+
+    Blockly.Python.forBlock["esp32_sd_init"] = function (block, generator) {
+      generator.definitions_["import_sd"] = "import machine, os, sdcard";
+      const id = block.getFieldValue("ID");
+      const sck = block.getFieldValue("SCK");
+      const mosi = block.getFieldValue("MOSI");
+      const miso = block.getFieldValue("MISO");
+      const cs = block.getFieldValue("CS");
+      return `_sd_spi = machine.SPI(${id}, sck=machine.Pin(${sck}), mosi=machine.Pin(${mosi}), miso=machine.Pin(${miso}))
+_sd = sdcard.SDCard(_sd_spi, machine.Pin(${cs}))
+try:
+    os.mount(_sd, "/sd")
+except OSError:
+    pass
+`;
+    };
+
+    Blockly.Python.forBlock["esp32_file_write"] = function (block, generator) {
+      generator.definitions_["import_os_files"] = "import os";
+      const filename = block.getFieldValue("FILENAME");
+      const mode = block.getFieldValue("MODE");
+      const content = generator.valueToCode(block, "CONTENT", ORDER_ATOMIC) || "''";
+      if (mode === "a") {
+        return `with open("${filename}", "a") as _f:\n    _f.write(str(${content}) + "\\n")\n`;
+      }
+      return `with open("${filename}", "w") as _f:\n    _f.write(str(${content}))\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_file_read"] = function (block, generator) {
+      generator.definitions_["import_os_files"] = "import os";
+      generator.definitions_["file_read_func"] =
+`def _archivo_leer(nombre):
+    try:
+        with open(nombre, "r") as f:
+            return f.read()
+    except OSError:
+        return ""`;
+      const filename = block.getFieldValue("FILENAME");
+      return [`_archivo_leer("${filename}")`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_file_exists"] = function (block, generator) {
+      generator.definitions_["import_os_files"] = "import os";
+      generator.definitions_["file_exists_func"] =
+`def _archivo_existe(nombre):
+    try:
+        os.stat(nombre)
+        return True
+    except OSError:
+        return False`;
+      const filename = block.getFieldValue("FILENAME");
+      return [`_archivo_existe("${filename}")`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_file_delete"] = function (block, generator) {
+      generator.definitions_["import_os_files"] = "import os";
+      const filename = block.getFieldValue("FILENAME");
+      return `try:\n    os.remove("${filename}")\nexcept OSError:\n    pass\n`;
+    };
+
+    // ---------- GENERADORES ENERGIA Y DEEP SLEEP ----------
+
+    Blockly.Python.forBlock["esp32_deep_sleep_ms"] = function (block, generator) {
+      generator.definitions_["import_machine_sleep"] = "import machine";
+      const ms = block.getFieldValue("MS");
+      return `machine.deepsleep(${ms})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_deep_sleep_pin_wake"] = function (block, generator) {
+      generator.definitions_["import_esp32_sleep"] = "import esp32, machine";
+      const pin = block.getFieldValue("PIN");
+      const level = block.getFieldValue("LEVEL");
+      return `esp32.wake_on_ext0(pin=machine.Pin(${pin}), level=${level})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_woke_from_sleep"] = function (block, generator) {
+      generator.definitions_["import_machine_sleep"] = "import machine";
+      return ["(machine.reset_cause() == machine.DEEPSLEEP_RESET)", ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_print"] = function (block, generator) {
+      const text = generator.valueToCode(block, "TEXT", ORDER_ATOMIC) || "''";
+      return `print(${text})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_wifi_connect"] = function (block, generator) {
+      generator.definitions_["import_network"] = "import network";
+      generator.definitions_["import_time"] = "import time";
+      const ssid = block.getFieldValue("SSID").replace(/'/g, "\\'");
+      const pass_ = block.getFieldValue("PASS").replace(/'/g, "\\'");
+      let code = `wlan = network.WLAN(network.STA_IF)\n`;
+      code += `wlan.active(True)\n`;
+      code += `wlan.connect('${ssid}', '${pass_}')\n`;
+      code += `while not wlan.isconnected():\n    time.sleep_ms(200)\n`;
+      code += `print('WiFi conectado:', wlan.ifconfig())\n`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_wifi_get_ip"] = function (block, generator) {
+      return [`wlan.ifconfig()[0]`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES BLE ----------
+
+// Asegurar la instancia del generador de Python
+
+
+// Registros de cada bloque usando forBlock
+Blockly.Python.forBlock["esp32_ble_init"] = function (block, generator) {
+  generator.definitions_["import_bluetooth"] = "import bluetooth";
+  generator.definitions_["import_time"] = "import time";
+  
+  const name = block.getFieldValue("NAME").replace(/'/g, "\\'");
+  
+  let code = `_ble = bluetooth.BLE()\n`;
+  code += `_ble.active(True)\n`;
+  code += `time.sleep_ms(200)\n`;
+  code += `_ble.config(gap_name='${name}')\n`;
+  code += `_ble_name = '${name}'\n`;
+  code += `_ble_services_list = []\n`;
+  code += `_ble_current_svc = None\n`;
+  code += `_ble_handles = {}\n`;
+  code += `_ble_connections = set()\n`;
+  code += `_ble_last_write_ms = {}\n`;
+  code += `_adv_data = None\n`;
+  code += `def _ble_irq(event, data):\n`;
+  code += `    global _adv_data\n`;
+  code += `    if event == 1:\n`;
+  code += `        _ble_connections.add(data[0])\n`;
+  code += `        try: _ble.gap_advertise(None)\n`;
+  code += `        except: pass\n`;
+  code += `    elif event == 2:\n`;
+  code += `        _ble_connections.discard(data[0])\n`;
+  code += `        if _adv_data:\n`;
+  code += `            try: _ble.gap_advertise(100000, adv_data=_adv_data, connectable=True)\n`;
+  code += `            except: pass\n`;
+  code += `    elif event == 3:\n`;
+  code += `        _ble_last_write_ms[data[1]] = time.ticks_ms()\n`;
+  code += `_ble.irq(_ble_irq)\n`;
+  return code;
+};
+
+Blockly.Python.forBlock["esp32_ble_ms_since_write"] = function (block, generator) {
+  generator.definitions_["import_time"] = "import time";
+  const uuid = block.getFieldValue("UUID");
+  generator.definitions_["ble_ms_since_write_func"] =
+`def _ble_ms_desde_escritura(uuid):
+    if uuid not in _ble_handles:
+        return 999999
+    handle = _ble_handles[uuid]
+    if handle not in _ble_last_write_ms:
+        return 999999
+    return time.ticks_diff(time.ticks_ms(), _ble_last_write_ms[handle])`;
+  return [`_ble_ms_desde_escritura('${uuid}')`, generator.ORDER_ATOMIC];
+};
+
+Blockly.Python.forBlock["esp32_ble_advertise"] = function (block, generator) {
+  generator.definitions_["import_bluetooth"] = "import bluetooth";
+  generator.definitions_["ble_adv_helper"] =
+`def _parse_uuid(s):
+    if isinstance(s, str) and s.lower().startswith('0x'):
+        return int(s, 16)
+    return s
+
+def _ble_build_adv(name, svc_uuid_str=None):
+    payload = bytearray()
+    payload += bytes([2, 0x01, 0x06])
+    if svc_uuid_str:
+        try:
+            u = bluetooth.UUID(_parse_uuid(svc_uuid_str))
+            b = bytes(u)
+            ad_type = 0x07 if len(b) == 16 else (0x03 if len(b) == 2 else 0x05)
+            payload += bytes([len(b) + 1, ad_type]) + b
+        except Exception:
+            pass
+    name_bytes = name.encode('utf-8')
+    if name_bytes:
+        payload += bytes([len(name_bytes) + 1, 0x09]) + name_bytes
+    return bytes(payload)`;
+
+  let code = `if _ble_services_list:\n`;
+  code += `    _registered = _ble.gatts_register_services([\n`;
+  code += `        (bluetooth.UUID(_parse_uuid(svc)), [(bluetooth.UUID(_parse_uuid(c)), p) for c, p in chars])\n`;
+  code += `        for svc, chars in _ble_services_list\n`;
+  code += `    ])\n`;
+  code += `    for svc_idx, (svc_uuid, chars) in enumerate(_ble_services_list):\n`;
+  code += `        for char_idx, (char_uuid, _) in enumerate(chars):\n`;
+  code += `            _ble_handles[char_uuid] = _registered[svc_idx][char_idx]\n`;
+  code += `    _adv_data = _ble_build_adv(_ble_name, _ble_services_list[0][0])\n`;
+  code += `else:\n`;
+  code += `    _adv_data = _ble_build_adv(_ble_name)\n`;
+  code += `try:\n`;
+  code += `    _ble.gap_advertise(100000, adv_data=_adv_data, connectable=True)\n`;
+  code += `    print('BLE anunciandose como', _ble_name)\n`;
+  code += `except Exception as _e:\n`;
+  code += `    print('Error al iniciar advertising BLE:', _e)\n`;
+  return code;
+};
+
+Blockly.Python.forBlock["esp32_ble_create_service"] = function (block, generator) {
+  const uuid = block.getFieldValue("UUID");
+  return `_ble_current_svc = '${uuid}'\n_ble_services_list.append(('${uuid}', []))\n`;
+};
+
+Blockly.Python.forBlock["esp32_ble_create_characteristic"] = function (block, generator) {
+  const uuid = block.getFieldValue("UUID");
+  const props = block.getFieldValue("PROPS");
+  return `_ble_services_list[-1][1].append(('${uuid}', ${props}))\n`;
+};
+
+Blockly.Python.forBlock["esp32_ble_write_char"] = function (block, generator) {
+  const uuid = block.getFieldValue("UUID");
+  const value = generator.valueToCode(block, "VALUE", generator.ORDER_ATOMIC) || "'0'";
+  return `if '${uuid}' in _ble_handles: _ble.gatts_write(_ble_handles['${uuid}'], str(${value}).encode())\n`;
+};
+
+Blockly.Python.forBlock["esp32_ble_notify"] = function (block, generator) {
+  const uuid = block.getFieldValue("UUID");
+  const value = generator.valueToCode(block, "VALUE", generator.ORDER_ATOMIC) || "'0'";
+  let code = `if '${uuid}' in _ble_handles:\n`;
+  code += `    val_bytes = str(${value}).encode()\n`;
+  code += `    _ble.gatts_write(_ble_handles['${uuid}'], val_bytes)\n`;
+  code += `    for conn_handle in _ble_connections:\n`;
+  code += `        _ble.gatts_notify(conn_handle, _ble_handles['${uuid}'], val_bytes)\n`;
+  return code;
+};
+
+Blockly.Python.forBlock["esp32_ble_read_char"] = function (block, generator) {
+  const uuid = block.getFieldValue("UUID");
+  // Se obtiene la cadena cruda decodificada
+  const code = `(_ble.gatts_read(_ble_handles['${uuid}']).decode('utf-8', 'ignore') if '${uuid}' in _ble_handles else '')`;
+  return [code, generator.ORDER_ATOMIC];
+};
+
+
+
+Blockly.Python.forBlock["esp32_ble_scan"] = function (block, generator) {
+  generator.definitions_["import_bluetooth"] = "import bluetooth";
+  generator.definitions_["import_time"] = "import time";
+  
+  let code = `def _ble_irq(event, data):\n`;
+  code += `    if event == 1: _ble_connections.add(data[0])\n`;
+  code += `    elif event == 2: _ble_connections.discard(data[0])\n`;
+  code += `    elif event == 5: print('BLE encontrado:', data[1], 'RSSI:', data[3])\n`;
+  code += `_ble.irq(_ble_irq)\n`;
+  code += `_ble.gap_scan(5000, 30000, 30000)\n`;
+  return code;
+};
+
+Blockly.Python.forBlock["esp32_ble_stop_scan"] = function (block, generator) {
+  return `_ble.gap_scan(None)\n`;
+};
+
+    // ---------- GENERADORES ESP-NOW ----------
+
+    Blockly.Python.forBlock["esp32_espnow_init"] = function (block, generator) {
+      generator.definitions_["import_network"] = "import network";
+      generator.definitions_["import_espnow"] = "import espnow";
+      return `wlan = network.WLAN(network.STA_IF)\nwlan.active(True)\nwlan.config(channel=1)\n_esp_now = espnow.ESPNow()\n_esp_now.active(True)\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_espnow_add_peer"] = function (block, generator) {
+      const mac = block.getFieldValue("MAC");
+      const macHex = mac.replace(/:/g, "").toUpperCase();
+      return `_esp_now.add_peer(bytes.fromhex("${macHex}"))\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_espnow_send"] = function (block, generator) {
+      const mac = block.getFieldValue("MAC");
+      const macHex = mac.replace(/:/g, "").toUpperCase();
+      const msg = generator.valueToCode(block, "MSG", ORDER_ATOMIC) || "''";
+      return `_esp_now.send(bytes.fromhex("${macHex}"), str(${msg}).encode())\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_espnow_on_receive"] = function (block, generator) {
+      generator.definitions_["import_micropython_irq"] = "import micropython\nmicropython.alloc_emergency_exception_buf(100)";
+      generator.definitions_["espnow_mac_func"] =
+`def _mac_bytes_to_str(b):
+    return ':'.join('%02X' % x for x in b)`;
+      const macVar = generator.getVariableName
+        ? generator.getVariableName(block.getFieldValue("VAR_MAC"))
+        : generator.nameDB_.getName(block.getFieldValue("VAR_MAC"), Blockly.Names.NameType.VARIABLE);
+      const msgVar = generator.getVariableName
+        ? generator.getVariableName(block.getFieldValue("VAR_MSG"))
+        : generator.nameDB_.getName(block.getFieldValue("VAR_MSG"), Blockly.Names.NameType.VARIABLE);
+
+      let body = _reindentBody(generator, generator.statementToCode(block, "DO"), "        ");
+
+      let code = `def _espnow_deferred(arg):\n`;
+      code += `    global ${macVar}, ${msgVar}\n`;
+      code += `    while True:\n`;
+      code += `        _mac, _msg = _esp_now.irecv(0)\n`;
+      code += `        if _mac is None:\n`;
+      code += `            break\n`;
+      code += `        ${macVar} = _mac_bytes_to_str(_mac)\n`;
+      code += `        ${msgVar} = _msg.decode("utf-8", "ignore") if _msg is not None else ""\n`;
+      code += body;
+      code += `def _espnow_handler(e):\n    micropython.schedule(_espnow_deferred, 0)\n`;
+      code += `_esp_now.irq(_espnow_handler)\n`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_espnow_my_mac"] = function (block, generator) {
+      generator.definitions_["import_network"] = "import network";
+      generator.definitions_["espnow_mac_func"] =
+`def _mac_bytes_to_str(b):
+    return ':'.join('%02X' % x for x in b)`;
+      return [`_mac_bytes_to_str(wlan.config('mac'))`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES SENSORES ANALOGICOS ----------
+
+    Blockly.Python.forBlock["esp32_sensor_ldr"] = function (block, generator) {
+      generator.definitions_["import_machine_adc"] = "from machine import ADC";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      generator.definitions_[`adc_init_${pin}`] = `_adc_${pin} = ADC(Pin(${pin}))\n_adc_${pin}.atten(ADC.ATTN_11DB)`;
+      return [`_adc_${pin}.read_u16()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_potentiometer"] = function (block, generator) {
+      generator.definitions_["import_machine_adc"] = "from machine import ADC";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      generator.definitions_[`adc_init_${pin}`] = `_adc_${pin} = ADC(Pin(${pin}))\n_adc_${pin}.atten(ADC.ATTN_11DB)`;
+      return [`_adc_${pin}.read_u16()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_rain"] = function (block, generator) {
+      generator.definitions_["import_machine_adc"] = "from machine import ADC";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      generator.definitions_[`adc_init_${pin}`] = `_adc_${pin} = ADC(Pin(${pin}))\n_adc_${pin}.atten(ADC.ATTN_11DB)`;
+      return [`_adc_${pin}.read_u16()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_sound"] = function (block, generator) {
+      generator.definitions_["import_machine_adc"] = "from machine import ADC";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      generator.definitions_[`adc_init_${pin}`] = `_adc_${pin} = ADC(Pin(${pin}))\n_adc_${pin}.atten(ADC.ATTN_11DB)`;
+      return [`_adc_${pin}.read_u16()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_joystick"] = function (block, generator) {
+      generator.definitions_["import_machine_adc"] = "from machine import ADC";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pinX = block.getFieldValue("PIN_X");
+      const pinY = block.getFieldValue("PIN_Y");
+      const pinBtn = block.getFieldValue("PIN_BTN");
+      generator.definitions_["joystick_init"] = `_adc_x = ADC(Pin(${pinX}))\n_adc_x.atten(ADC.ATTN_11DB)\n_adc_y = ADC(Pin(${pinY}))\n_adc_y.atten(ADC.ATTN_11DB)\n_btn_js = Pin(${pinBtn}, Pin.IN, Pin.PULL_UP)`;
+      return [`(_adc_x.read_u16(), _adc_y.read_u16(), 1 - _btn_js.value())`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_tds"] = function (block, generator) {
+      generator.definitions_["import_machine_adc"] = "from machine import ADC";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["tds_func"] =
+`def _leer_tds(valor_crudo, temp):
+    voltaje = (valor_crudo / 65535) * 3.3
+    coef_comp = 1.0 + 0.02 * (temp - 25.0)
+    voltaje_comp = voltaje / coef_comp
+    return (133.42 * voltaje_comp ** 3 - 255.86 * voltaje_comp ** 2 + 857.39 * voltaje_comp) * 0.5`;
+      const pin = block.getFieldValue("PIN");
+      const temp = block.getFieldValue("TEMP");
+      generator.definitions_[`adc_init_${pin}`] = `_adc_${pin} = ADC(Pin(${pin}))\n_adc_${pin}.atten(ADC.ATTN_11DB)`;
+      return [`_leer_tds(_adc_${pin}.read_u16(), ${temp})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["math_map"] = function (block, generator) {
+      const value = generator.valueToCode(block, "VALUE", ORDER_ATOMIC) || '0';
+      const inMin = block.getFieldValue("IN_MIN");
+      const inMax = block.getFieldValue("IN_MAX");
+      const outMin = block.getFieldValue("OUT_MIN");
+      const outMax = block.getFieldValue("OUT_MAX");
+      generator.definitions_["math_map_func"] = `def _map(x, in_min, in_max, out_min, out_max):\n    return int((x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min)\n`;
+      return [`_map(${value}, ${inMin}, ${inMax}, ${outMin}, ${outMax})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["math_to_hex"] = function (block, generator) {
+      const num = generator.valueToCode(block, "NUM", ORDER_ATOMIC) || '0';
+      return [`hex(int(${num}))`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["math_from_hex"] = function (block, generator) {
+      const value = block.getFieldValue("VALUE").replace(/'/g, "\'");
+      return [`int('${value}', 16)`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["math_to_bin"] = function (block, generator) {
+      const num = generator.valueToCode(block, "NUM", ORDER_ATOMIC) || '0';
+      return [`bin(int(${num}))`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["math_from_bin"] = function (block, generator) {
+      const value = block.getFieldValue("VALUE").replace(/'/g, "\'");
+      return [`int('${value}', 2)`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["math_to_oct"] = function (block, generator) {
+      const num = generator.valueToCode(block, "NUM", ORDER_ATOMIC) || '0';
+      return [`oct(int(${num}))`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["math_from_oct"] = function (block, generator) {
+      const value = block.getFieldValue("VALUE").replace(/'/g, "\'");
+      return [`int('${value}', 8)`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES SENSORES DIGITALES ----------
+
+    function _sensorDigitalSetup(generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["sensor_digital_state"] = "_sensor_pins = {}";
+      generator.definitions_["sensor_digital_func"] =
+`def _leer_sensor_digital(pin):
+    if pin not in _sensor_pins:
+        _sensor_pins[pin] = Pin(pin, Pin.IN)
+    return _sensor_pins[pin].value()`;
+    }
+
+    Blockly.Python.forBlock["esp32_sensor_pir"] = function (block, generator) {
+      _sensorDigitalSetup(generator);
+      const pin = block.getFieldValue("PIN");
+      return [`_leer_sensor_digital(${pin})`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES SENSOR INFRARROJO (IR) ----------
+
+    function _irSetup(generator) {
+      generator.definitions_["import_time"] = "import time";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["ir_state"] = "_ir_pin = None\n_ir_times = []\n_ir_last_code = None\n_ir_new = False";
+      generator.definitions_["ir_irq_func"] =
+`def _ir_irq(pin):
+    global _ir_times
+    _ir_times.append(time.ticks_us())
+    if len(_ir_times) > 140:
+        _ir_times.pop(0)`;
+      generator.definitions_["ir_init_func"] =
+`def _ir_init(pin_num):
+    global _ir_pin
+    _ir_pin = Pin(pin_num, Pin.IN, Pin.PULL_UP)
+    _ir_pin.irq(trigger=Pin.IRQ_FALLING | Pin.IRQ_RISING, handler=_ir_irq)`;
+      generator.definitions_["ir_poll_func"] =
+`def _ir_poll():
+    global _ir_times, _ir_last_code, _ir_new
+    times = _ir_times
+    if len(times) < 4:
+        return
+    now = time.ticks_us()
+    if time.ticks_diff(now, times[-1]) < 10000:
+        return
+    seq = times[:]
+    _ir_times.clear()
+    diffs = []
+    for i in range(1, len(seq)):
+        diffs.append(time.ticks_diff(seq[i], seq[i - 1]))
+    header_idx = None
+    for i in range(len(diffs) - 1):
+        if 8000 < diffs[i] < 10000 and 4000 < diffs[i + 1] < 5000:
+            header_idx = i
+            break
+    if header_idx is None:
+        return
+    bits = []
+    idx = header_idx + 2
+    while idx + 1 < len(diffs) and len(bits) < 32:
+        bits.append(1 if diffs[idx + 1] > 1000 else 0)
+        idx += 2
+    if len(bits) < 32:
+        return
+    code = 0
+    for b in bits:
+        code = (code << 1) | b
+    _ir_last_code = code
+    _ir_new = True`;
+      generator.definitions_["ir_has_signal_func"] =
+`def _ir_has_signal():
+    _ir_poll()
+    return _ir_new`;
+      generator.definitions_["ir_read_code_func"] =
+`def _ir_read_code():
+    global _ir_new
+    _ir_poll()
+    _ir_new = False
+    return _ir_last_code if _ir_last_code is not None else 0`;
+    }
+
+    Blockly.Python.forBlock["esp32_ir_init"] = function (block, generator) {
+      _irSetup(generator);
+      const pin = block.getFieldValue("PIN");
+      return `_ir_init(${pin})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_ir_has_signal"] = function (block, generator) {
+      _irSetup(generator);
+      return [`_ir_has_signal()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_ir_read_code"] = function (block, generator) {
+      _irSetup(generator);
+      return [`_ir_read_code()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_sound_digital"] = function (block, generator) {
+      _sensorDigitalSetup(generator);
+      const pin = block.getFieldValue("PIN");
+      return [`_leer_sensor_digital(${pin})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_obstacle"] = function (block, generator) {
+      _sensorDigitalSetup(generator);
+      const pin = block.getFieldValue("PIN");
+      return [`_leer_sensor_digital(${pin})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_magnetic"] = function (block, generator) {
+      _sensorDigitalSetup(generator);
+      const pin = block.getFieldValue("PIN");
+      return [`_leer_sensor_digital(${pin})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_flame"] = function (block, generator) {
+      _sensorDigitalSetup(generator);
+      const pin = block.getFieldValue("PIN");
+      return [`_leer_sensor_digital(${pin})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_sensor_limit_switch"] = function (block, generator) {
+      _sensorDigitalSetup(generator);
+      const pin = block.getFieldValue("PIN");
+      return [`_leer_sensor_digital(${pin})`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES SERVOMOTORES ----------
+
+    Blockly.Python.forBlock["esp32_servo_180"] = function (block, generator) {
+      generator.definitions_["import_machine_pwm"] = "from machine import PWM";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const angle = generator.valueToCode(block, "ANGLE", ORDER_ATOMIC) || '90';
+      generator.definitions_[`servo_${pin}_init`] = `_servo_${pin} = PWM(Pin(${pin}), freq=50)`;
+      // Si el angulo es un numero fijo (no una variable/expresion), calculamos el
+      // duty cycle una sola vez aqui en JavaScript y lo dejamos como constante en
+      // el codigo generado: el ESP32 no hace NINGUNA cuenta en tiempo de ejecucion.
+      if (/^-?\d+(\.\d+)?$/.test(angle.trim())) {
+        const duty = Math.trunc(1638 + (parseFloat(angle) * 6554) / 180);
+        return `_servo_${pin}.duty_u16(${duty})\n`;
+      }
+      // Si viene de una variable o expresion, el valor solo se conoce en tiempo de
+      // ejecucion, asi que no queda otra que calcularlo cada vez (con enteros).
+      return `_servo_${pin}.duty_u16(int(1638 + (${angle} * 6554) // 180))\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_servo_360"] = function (block, generator) {
+      generator.definitions_["import_machine_pwm"] = "from machine import PWM";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const speed = generator.valueToCode(block, "SPEED", ORDER_ATOMIC) || '0';
+      generator.definitions_[`servo360_${pin}_init`] = `_servo360_${pin} = PWM(Pin(${pin}), freq=50)`;
+      if (/^-?\d+(\.\d+)?$/.test(speed.trim())) {
+        const duty = Math.trunc(4915 + (parseFloat(speed) * 16.38));
+        return `_servo360_${pin}.duty_u16(${duty})\n`;
+      }
+      return `_servo360_${pin}.duty_u16(int(4915 + (${speed} * 16.38)))\n`;
+    };
+
+    // ---------- GENERADORES ULTRASONICOS ----------
+
+    Blockly.Python.forBlock["esp32_ultrasonic"] = function (block, generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["import_time"] = "import time";
+      const trig = block.getFieldValue("TRIG");
+      const echo = block.getFieldValue("ECHO");
+      generator.definitions_[`ultrasonic_${trig}_${echo}_init`] = `_trig_${trig} = Pin(${trig}, Pin.OUT)\n_echo_${echo} = Pin(${echo}, Pin.IN)`;
+      let code = `def _ultra_${trig}_${echo}():\n`;
+      code += `    _trig_${trig}.value(0)\n`;
+      code += `    time.sleep_us(2)\n`;
+      code += `    _trig_${trig}.value(1)\n`;
+      code += `    time.sleep_us(10)\n`;
+      code += `    _trig_${trig}.value(0)\n`;
+      code += `    _t0 = time.ticks_us()\n`;
+      code += `    while _echo_${echo}.value() == 0:\n`;
+      code += `        if time.ticks_diff(time.ticks_us(), _t0) > 30000:\n`;
+      code += `            return -1\n`;
+      code += `    inicio = time.ticks_us()\n`;
+      code += `    while _echo_${echo}.value() == 1:\n`;
+      code += `        if time.ticks_diff(time.ticks_us(), inicio) > 30000:\n`;
+      code += `            return -1\n`;
+      code += `    fin = time.ticks_us()\n`;
+      code += `    return (time.ticks_diff(fin, inicio) * 0.0343) / 2\n`;
+      generator.definitions_[`ultrasonic_${trig}_${echo}_func`] = code;
+      return [`_ultra_${trig}_${echo}()`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES I2C ----------
+
+    Blockly.Python.forBlock["esp32_i2c_init"] = function (block, generator) {
+      generator.definitions_["import_machine_i2c"] = "from machine import I2C, Pin";
+      const sda = block.getFieldValue("SDA");
+      const scl = block.getFieldValue("SCL");
+      return `_i2c = I2C(0, scl=Pin(${scl}), sda=Pin(${sda}), freq=400000)\n`;
+    };
+
+    // ---------- GENERADORES SENSORES I2C AVANZADOS ----------
+
+    Blockly.Python.forBlock["esp32_vl53l0x_read"] = function (block, generator) {
+      generator.definitions_["vl53l0x_state"] = "_vl53 = None";
+      generator.definitions_["vl53l0x_func"] =
+`def _leer_vl53l0x():
+    global _vl53
+    if _vl53 is None:
+        from vl53l0x import VL53L0X
+        _vl53 = VL53L0X(_i2c)
+        _vl53.start()
+    return _vl53.read()`;
+      return [`_leer_vl53l0x()`, ORDER_ATOMIC];
+    };
+
+    const MPU6050_FUNC_DEF =
+`def _leer_mpu6050():
+    global _mpu_ready
+    addr = 0x68
+    if not _mpu_ready:
+        _i2c.writeto_mem(addr, 0x6B, bytes([0x00]))
+        _mpu_ready = True
+    d = _i2c.readfrom_mem(addr, 0x3B, 14)
+    def _s16(h, l):
+        v = (h << 8) | l
+        return v - 65536 if v > 32767 else v
+    ax = _s16(d[0], d[1]) / 16384.0
+    ay = _s16(d[2], d[3]) / 16384.0
+    az = _s16(d[4], d[5]) / 16384.0
+    gx = _s16(d[8], d[9]) / 131.0
+    gy = _s16(d[10], d[11]) / 131.0
+    gz = _s16(d[12], d[13]) / 131.0
+    return (ax, ay, az, gx, gy, gz)`;
+
+    function _mpu6050Setup(generator) {
+      generator.definitions_["mpu6050_state"] = "_mpu_ready = False";
+      generator.definitions_["mpu6050_func"] = MPU6050_FUNC_DEF;
+    }
+
+    Blockly.Python.forBlock["esp32_mpu6050_read"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      return [`_leer_mpu6050()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_mpu6050_accel_x"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      return [`_leer_mpu6050()[0]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_mpu6050_accel_y"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      return [`_leer_mpu6050()[1]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_mpu6050_accel_z"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      return [`_leer_mpu6050()[2]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_mpu6050_gyro_x"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      return [`_leer_mpu6050()[3]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_mpu6050_gyro_y"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      return [`_leer_mpu6050()[4]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_mpu6050_gyro_z"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      return [`_leer_mpu6050()[5]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_mpu6050_accel_magnitude"] = function (block, generator) {
+      _mpu6050Setup(generator);
+      generator.definitions_["import_math"] = "import math";
+      generator.definitions_["mpu6050_mag_func"] =
+`def _leer_mpu6050_mag():
+    ax, ay, az, gx, gy, gz = _leer_mpu6050()
+    return math.sqrt(ax * ax + ay * ay + az * az)`;
+      return [`_leer_mpu6050_mag()`, ORDER_ATOMIC];
+    };
+
+    const TCS34725_FUNC_DEF =
+`def _leer_tcs34725():
+    global _tcs_ready
+    addr = 0x29
+    if not _tcs_ready:
+        _i2c.writeto_mem(addr, 0x80, bytes([0x03]))
+        time.sleep_ms(3)
+        _i2c.writeto_mem(addr, 0x81, bytes([0xC0]))
+        _i2c.writeto_mem(addr, 0x8F, bytes([0x00]))
+        _tcs_ready = True
+    d = _i2c.readfrom_mem(addr, 0xB4, 8)
+    c = d[0] | (d[1] << 8)
+    r = d[2] | (d[3] << 8)
+    g = d[4] | (d[5] << 8)
+    b = d[6] | (d[7] << 8)
+    return (r, g, b, c)`;
+
+    function _tcs34725Setup(generator) {
+      generator.definitions_["import_time"] = "import time";
+      generator.definitions_["tcs34725_state"] = "_tcs_ready = False";
+      generator.definitions_["tcs34725_func"] = TCS34725_FUNC_DEF;
+    }
+
+    Blockly.Python.forBlock["esp32_tcs34725_read"] = function (block, generator) {
+      _tcs34725Setup(generator);
+      return [`_leer_tcs34725()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_tcs34725_red"] = function (block, generator) {
+      _tcs34725Setup(generator);
+      return [`_leer_tcs34725()[0]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_tcs34725_green"] = function (block, generator) {
+      _tcs34725Setup(generator);
+      return [`_leer_tcs34725()[1]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_tcs34725_blue"] = function (block, generator) {
+      _tcs34725Setup(generator);
+      return [`_leer_tcs34725()[2]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_tcs34725_clear"] = function (block, generator) {
+      _tcs34725Setup(generator);
+      return [`_leer_tcs34725()[3]`, ORDER_ATOMIC];
+    };
+
+    const HMC5883L_FUNC_DEF =
+`def _leer_hmc5883l():
+    global _hmc_ready
+    addr = 0x1E
+    if not _hmc_ready:
+        _i2c.writeto_mem(addr, 0x00, bytes([0x70]))
+        _i2c.writeto_mem(addr, 0x01, bytes([0x20]))
+        _i2c.writeto_mem(addr, 0x02, bytes([0x00]))
+        _hmc_ready = True
+    d = _i2c.readfrom_mem(addr, 0x03, 6)
+    def _s16(h, l):
+        v = (h << 8) | l
+        return v - 65536 if v > 32767 else v
+    x = _s16(d[0], d[1])
+    z = _s16(d[2], d[3])
+    y = _s16(d[4], d[5])
+    return (x, y, z)`;
+
+    function _hmc5883lSetup(generator) {
+      generator.definitions_["hmc5883l_state"] = "_hmc_ready = False";
+      generator.definitions_["hmc5883l_func"] = HMC5883L_FUNC_DEF;
+    }
+
+    Blockly.Python.forBlock["esp32_hmc5883l_read"] = function (block, generator) {
+      _hmc5883lSetup(generator);
+      return [`_leer_hmc5883l()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_hmc5883l_x"] = function (block, generator) {
+      _hmc5883lSetup(generator);
+      return [`_leer_hmc5883l()[0]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_hmc5883l_y"] = function (block, generator) {
+      _hmc5883lSetup(generator);
+      return [`_leer_hmc5883l()[1]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_hmc5883l_z"] = function (block, generator) {
+      _hmc5883lSetup(generator);
+      return [`_leer_hmc5883l()[2]`, ORDER_ATOMIC];
+    };
+
+Blockly.Python.forBlock["esp32_hmc5883l_heading"] = function (block, generator) {
+  _hmc5883lSetup(generator);
+  generator.definitions_["import_math"] = "import math";
+  
+  // Función con try/except para prevenir bloqueos por fallas de conexión I2C
+  generator.definitions_["hmc5883l_heading_func"] =
+`def _leer_hmc5883l_heading():
+    try:
+        x, y, z = _leer_hmc5883l()
+        h = math.atan2(y, x) * 180.0 / math.pi
+        if h < 0:
+            h += 360.0
+        return round(h, 2)
+    except Exception:
+        return 0.0`;
+
+  // Uso de generator.ORDER_ATOMIC
+  return [`_leer_hmc5883l_heading()`, generator.ORDER_ATOMIC];
+};
+
+    Blockly.Python.forBlock["esp32_vl53l0x_near"] = function (block, generator) {
+      generator.definitions_["vl53l0x_state"] = "_vl53 = None";
+      generator.definitions_["vl53l0x_func"] =
+`def _leer_vl53l0x():
+    global _vl53
+    if _vl53 is None:
+        from vl53l0x import VL53L0X
+        _vl53 = VL53L0X(_i2c)
+        _vl53.start()
+    return _vl53.read()`;
+      const threshold = generator.valueToCode(block, "THRESHOLD", ORDER_ATOMIC) || "0";
+      return [`(_leer_vl53l0x() < ${threshold})`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES CLIMA Y AMBIENTE ----------
+
+    function _dhtSetup(generator, pin, type) {
+      generator.definitions_["import_dht"] = "import dht";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const varName = `_dht_${pin}`;
+      const funcName = `_leer_dht_${pin}`;
+      generator.definitions_[`dht_${pin}_init`] = `${varName} = dht.${type}(Pin(${pin}))`;
+      generator.definitions_[`dht_${pin}_func`] =
+`def ${funcName}():
+    ${varName}.measure()
+    return (${varName}.temperature(), ${varName}.humidity())`;
+      return funcName;
+    }
+
+    Blockly.Python.forBlock["esp32_dht_read"] = function (block, generator) {
+      const type = block.getFieldValue("TYPE");
+      const pin = block.getFieldValue("PIN");
+      const funcName = _dhtSetup(generator, pin, type);
+      return [`${funcName}()`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_dht_temperature"] = function (block, generator) {
+      const type = block.getFieldValue("TYPE");
+      const pin = block.getFieldValue("PIN");
+      const funcName = _dhtSetup(generator, pin, type);
+      return [`${funcName}()[0]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_dht_humidity"] = function (block, generator) {
+      const type = block.getFieldValue("TYPE");
+      const pin = block.getFieldValue("PIN");
+      const funcName = _dhtSetup(generator, pin, type);
+      return [`${funcName}()[1]`, ORDER_ATOMIC];
+    };
+
+    const BMP_BME_FUNC_DEF =
+`def _leer_bmp_bme(es_bme):
+    global _bmp_ready, _bmp_cal
+    addr = 0x76
+    if not _bmp_ready:
+        if es_bme:
+            _i2c.writeto_mem(addr, 0xF2, bytes([0x01]))
+        _i2c.writeto_mem(addr, 0xF4, bytes([0x27]))
+        _i2c.writeto_mem(addr, 0xF5, bytes([0xA0]))
+        c = _i2c.readfrom_mem(addr, 0x88, 24)
+        def _u16(o):
+            return c[o] | (c[o + 1] << 8)
+        def _s16(o):
+            v = _u16(o)
+            return v - 65536 if v > 32767 else v
+        _bmp_cal['T1'] = _u16(0); _bmp_cal['T2'] = _s16(2); _bmp_cal['T3'] = _s16(4)
+        _bmp_cal['P1'] = _u16(6); _bmp_cal['P2'] = _s16(8); _bmp_cal['P3'] = _s16(10)
+        _bmp_cal['P4'] = _s16(12); _bmp_cal['P5'] = _s16(14); _bmp_cal['P6'] = _s16(16)
+        _bmp_cal['P7'] = _s16(18); _bmp_cal['P8'] = _s16(20); _bmp_cal['P9'] = _s16(22)
+        if es_bme:
+            h1 = _i2c.readfrom_mem(addr, 0xA1, 1)[0]
+            hc = _i2c.readfrom_mem(addr, 0xE1, 7)
+            h2 = hc[0] | (hc[1] << 8)
+            if h2 > 32767: h2 -= 65536
+            h3 = hc[2]
+            h4 = (hc[3] << 4) | (hc[4] & 0x0F)
+            if h4 > 2047: h4 -= 4096
+            h5 = (hc[5] << 4) | (hc[4] >> 4)
+            if h5 > 2047: h5 -= 4096
+            h6 = hc[6]
+            if h6 > 127: h6 -= 256
+            _bmp_cal['H1'] = h1; _bmp_cal['H2'] = h2; _bmp_cal['H3'] = h3
+            _bmp_cal['H4'] = h4; _bmp_cal['H5'] = h5; _bmp_cal['H6'] = h6
+        _bmp_ready = True
+    d = _i2c.readfrom_mem(addr, 0xF7, 8 if es_bme else 6)
+    praw = (d[0] << 12) | (d[1] << 4) | (d[2] >> 4)
+    traw = (d[3] << 12) | (d[4] << 4) | (d[5] >> 4)
+    cal = _bmp_cal
+    v1 = (traw / 16384.0 - cal['T1'] / 1024.0) * cal['T2']
+    v2 = ((traw / 131072.0 - cal['T1'] / 8192.0) ** 2) * cal['T3']
+    t_fine = v1 + v2
+    temp = t_fine / 5120.0
+    v1p = (t_fine / 2.0) - 64000.0
+    v2p = v1p * v1p * cal['P6'] / 32768.0
+    v2p = v2p + v1p * cal['P5'] * 2.0
+    v2p = (v2p / 4.0) + (cal['P4'] * 65536.0)
+    v1p = (cal['P3'] * v1p * v1p / 524288.0 + cal['P2'] * v1p) / 524288.0
+    v1p = (1.0 + v1p / 32768.0) * cal['P1']
+    if v1p == 0:
+        pressure = 0.0
+    else:
+        pressure = 1048576.0 - praw
+        pressure = (pressure - (v2p / 4096.0)) * 6250.0 / v1p
+        v1p = cal['P9'] * pressure * pressure / 2147483648.0
+        v2p = pressure * cal['P8'] / 32768.0
+        pressure = pressure + (v1p + v2p + cal['P7']) / 16.0
+        pressure = pressure / 100.0
+    if es_bme:
+        hraw = (d[6] << 8) | d[7]
+        h = t_fine - 76800.0
+        h = (hraw - (cal['H4'] * 64.0 + cal['H5'] / 16384.0 * h)) * (cal['H2'] / 65536.0 * (1.0 + cal['H6'] / 67108864.0 * h * (1.0 + cal['H3'] / 67108864.0 * h)))
+        h = h * (1.0 - cal['H1'] * h / 524288.0)
+        if h > 100.0: h = 100.0
+        if h < 0.0: h = 0.0
+        return (temp, pressure, h)
+    return (temp, pressure, None)`;
+
+    Blockly.Python.forBlock["esp32_bmp_bme_read"] = function (block, generator) {
+      const type = block.getFieldValue("TYPE");
+      const isBme = type === "BME280" ? "True" : "False";
+      generator.definitions_["bmp280_state"] = "_bmp_ready = False\n_bmp_cal = {}";
+      generator.definitions_["bmp280_func"] = BMP_BME_FUNC_DEF;
+      return [`_leer_bmp_bme(${isBme})`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_bmp_bme_temperature"] = function (block, generator) {
+      const type = block.getFieldValue("TYPE");
+      const isBme = type === "BME280" ? "True" : "False";
+      generator.definitions_["bmp280_state"] = "_bmp_ready = False\n_bmp_cal = {}";
+      generator.definitions_["bmp280_func"] = BMP_BME_FUNC_DEF;
+      return [`_leer_bmp_bme(${isBme})[0]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_bmp_bme_pressure"] = function (block, generator) {
+      const type = block.getFieldValue("TYPE");
+      const isBme = type === "BME280" ? "True" : "False";
+      generator.definitions_["bmp280_state"] = "_bmp_ready = False\n_bmp_cal = {}";
+      generator.definitions_["bmp280_func"] = BMP_BME_FUNC_DEF;
+      return [`_leer_bmp_bme(${isBme})[1]`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_bmp_bme_humidity"] = function (block, generator) {
+      generator.definitions_["bmp280_state"] = "_bmp_ready = False\n_bmp_cal = {}";
+      generator.definitions_["bmp280_func"] = BMP_BME_FUNC_DEF;
+      return [`_leer_bmp_bme(True)[2]`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES MICROFONO I2S ----------
+
+    Blockly.Python.forBlock["esp32_i2s_mic_init"] = function (block, generator) {
+      generator.definitions_["import_machine_i2s"] = "from machine import I2S";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const id = block.getFieldValue("ID");
+      const sck = block.getFieldValue("SCK");
+      const ws = block.getFieldValue("WS");
+      const sd = block.getFieldValue("SD");
+      const rate = block.getFieldValue("RATE");
+      return `_mic = I2S(${id}, sck=Pin(${sck}), ws=Pin(${ws}), sd=Pin(${sd}), mode=I2S.RX, bits=32, format=I2S.MONO, rate=${rate}, ibuf=4096)
+_mic_buf = bytearray(4096)
+_mic_rate = ${rate}
+`;
+    };
+
+    Blockly.Python.forBlock["esp32_i2s_mic_read_level"] = function (block, generator) {
+      generator.definitions_["i2s_mic_read_func"] =
+`def _leer_mic_nivel():
+    n = _mic.readinto(_mic_buf)
+    if not n:
+        return 0
+    pico = 0
+    for i in range(0, n, 4):
+        v = _mic_buf[i + 2] | (_mic_buf[i + 3] << 8)
+        if v > 32767:
+            v -= 65536
+        v = abs(v)
+        if v > pico:
+            pico = v
+    return pico`;
+      return ["_leer_mic_nivel()", ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_i2s_mic_record_wav"] = function (block, generator) {
+      generator.definitions_["mic_record_func"] =
+`def _mic_grabar_wav(nombre_archivo, duracion_s):
+    total_muestras = int(_mic_rate * duracion_s)
+    tam_datos = total_muestras * 2
+    f = open(nombre_archivo, "wb")
+    f.write(b"RIFF")
+    f.write((36 + tam_datos).to_bytes(4, "little"))
+    f.write(b"WAVEfmt ")
+    f.write((16).to_bytes(4, "little"))
+    f.write((1).to_bytes(2, "little"))
+    f.write((1).to_bytes(2, "little"))
+    f.write(_mic_rate.to_bytes(4, "little"))
+    f.write((_mic_rate * 2).to_bytes(4, "little"))
+    f.write((2).to_bytes(2, "little"))
+    f.write((16).to_bytes(2, "little"))
+    f.write(b"data")
+    f.write(tam_datos.to_bytes(4, "little"))
+    escritas = 0
+    salida = bytearray(1024)
+    idx_salida = 0
+    while escritas < total_muestras:
+        n = _mic.readinto(_mic_buf)
+        if not n:
+            continue
+        for i in range(0, n, 4):
+            if escritas >= total_muestras:
+                break
+            salida[idx_salida] = _mic_buf[i + 2]
+            salida[idx_salida + 1] = _mic_buf[i + 3]
+            idx_salida += 2
+            escritas += 1
+            if idx_salida >= len(salida):
+                f.write(salida[:idx_salida])
+                idx_salida = 0
+    if idx_salida > 0:
+        f.write(salida[:idx_salida])
+    f.close()`;
+      const filename = block.getFieldValue("FILENAME");
+      const duration = block.getFieldValue("DURATION");
+      return `_mic_grabar_wav("${filename}", ${duration})\n`;
+    };
+
+    // ---------- GENERADORES AMPLIFICADOR MAX98357A (I2S) ----------
+
+    Blockly.Python.forBlock["esp32_max98357_init"] = function (block, generator) {
+      generator.definitions_["import_machine_i2s"] = "from machine import I2S";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const id = block.getFieldValue("ID");
+      const bclk = block.getFieldValue("BCLK");
+      const ws = block.getFieldValue("WS");
+      const din = block.getFieldValue("DIN");
+      const rate = block.getFieldValue("RATE");
+      return `_amp = I2S(${id}, sck=Pin(${bclk}), ws=Pin(${ws}), sd=Pin(${din}), mode=I2S.TX, bits=16, format=I2S.MONO, rate=${rate}, ibuf=4000)
+_amp_rate = ${rate}
+`;
+    };
+
+    Blockly.Python.forBlock["esp32_max98357_tone"] = function (block, generator) {
+      generator.definitions_["import_math_audio"] = "import math";
+      generator.definitions_["import_array_audio"] = "import array";
+      generator.definitions_["max98357_tono_func"] =
+`def _max98357_tono(frecuencia, duracion_ms):
+    ciclo = _amp_rate // frecuencia
+    if ciclo < 2:
+        ciclo = 2
+    buf = array.array("h", [0] * ciclo)
+    rango = (2 ** 15) // 8
+    for i in range(ciclo):
+        buf[i] = int(rango * math.sin(2 * math.pi * i / ciclo))
+    repeticiones = int(frecuencia * duracion_ms / 1000)
+    if repeticiones < 1:
+        repeticiones = 1
+    for _ in range(repeticiones):
+        _amp.write(buf)`;
+      const freq = block.getFieldValue("FREQ");
+      const dur = block.getFieldValue("DURATION");
+      return `_max98357_tono(${freq}, ${dur})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_max98357_play_wav"] = function (block, generator) {
+      generator.definitions_["max98357_play_wav_func"] =
+`def _max98357_reproducir_wav(nombre_archivo):
+    try:
+        f = open(nombre_archivo, "rb")
+    except OSError:
+        print("No se encontro el archivo:", nombre_archivo)
+        return
+    f.seek(44)  # omite el encabezado WAV estandar (44 bytes, PCM mono 16 bits)
+    buf = bytearray(1024)
+    while True:
+        n = f.readinto(buf)
+        if not n:
+            break
+        if n < len(buf):
+            _amp.write(buf[:n])
+        else:
+            _amp.write(buf)
+    f.close()`;
+      const filename = block.getFieldValue("FILENAME");
+      return `_max98357_reproducir_wav("${filename}")\n`;
+    };
+
+    // ---------- GENERADORES PANTALLA OLED 128x64 ----------
+
+    Blockly.Python.forBlock["esp32_oled_init"] = function (block, generator) {
+      generator.definitions_["import_framebuf"] = "import framebuf";
+      generator.definitions_["ssd1306_class"] =
+`class _SSD1306:
+    def __init__(self, i2c, addr=0x3C, w=128, h=64):
+        self.i2c = i2c
+        self.addr = addr
+        self.w = w
+        self.h = h
+        self.buf = bytearray(w * h // 8)
+        self.fb = framebuf.FrameBuffer(self.buf, w, h, framebuf.MONO_VLSB)
+        for c in (0xAE, 0xD5, 0x80, 0xA8, h - 1, 0xD3, 0x00, 0x40, 0x8D, 0x14, 0x20, 0x00, 0xA1, 0xC8, 0xDA, 0x12, 0x81, 0xCF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0xAF):
+            self._cmd(c)
+    def _cmd(self, c):
+        self.i2c.writeto(self.addr, bytes([0x80, c]))
+    def fill(self, c):
+        self.fb.fill(c)
+    def text(self, s, x, y, c=1):
+        self.fb.text(s, x, y, c)
+    def pixel(self, x, y, c=1):
+        self.fb.pixel(x, y, c)
+    def show(self):
+        for page in range(self.h // 8):
+            self._cmd(0xB0 + page)
+            self._cmd(0x00)
+            self._cmd(0x10)
+            self.i2c.writeto(self.addr, bytes([0x40]) + self.buf[self.w * page:self.w * (page + 1)])`;
+      return `_oled = _SSD1306(_i2c)\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_oled_clear"] = function (block, generator) {
+      return `_oled.fill(0)\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_oled_text"] = function (block, generator) {
+      const text = generator.valueToCode(block, "TEXT", ORDER_ATOMIC) || "''";
+      const x = block.getFieldValue("X");
+      const y = block.getFieldValue("Y");
+      return `_oled.text(str(${text}), ${x}, ${y})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_oled_show"] = function (block, generator) {
+      return `_oled.show()\n`;
+    };
+
+    // ---------- GENERADORES SENSORES DE GAS (MQ) ----------
+
+    Blockly.Python.forBlock["esp32_sensor_mq"] = function (block, generator) {
+      generator.definitions_["import_machine_adc"] = "from machine import ADC";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      generator.definitions_[`adc_init_${pin}`] = `_adc_${pin} = ADC(Pin(${pin}))\n_adc_${pin}.atten(ADC.ATTN_11DB)`;
+      return [`_adc_${pin}.read_u16()`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES MOTORES DC Y PASOS ----------
+
+    Blockly.Python.forBlock["esp32_motor_dc"] = function (block, generator) {
+      generator.definitions_["import_machine_pwm"] = "from machine import PWM";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["motor_dc_state"] = "_motor_pwms = {}\n_motor_pins = {}";
+      generator.definitions_["motor_dc_func"] =
+`def _motor_dc(in1, in2, en, speed):
+    if en not in _motor_pwms:
+        _motor_pwms[en] = PWM(Pin(en), freq=1000)
+    key = (in1, in2)
+    if key not in _motor_pins:
+        _motor_pins[key] = [Pin(in1, Pin.OUT), Pin(in2, Pin.OUT)]
+    p1, p2 = _motor_pins[key]
+    pwm = _motor_pwms[en]
+    speed = max(-100, min(100, speed))
+    if speed > 0:
+        p1.value(1)
+        p2.value(0)
+    elif speed < 0:
+        p1.value(0)
+        p2.value(1)
+    else:
+        p1.value(0)
+        p2.value(0)
+    pwm.duty_u16(int(abs(speed) / 100 * 65535))`;
+      const in1 = block.getFieldValue("IN1");
+      const in2 = block.getFieldValue("IN2");
+      const en = block.getFieldValue("EN");
+      const speed = generator.valueToCode(block, "SPEED", ORDER_ATOMIC) || '0';
+      return `_motor_dc(${in1}, ${in2}, ${en}, ${speed})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_stepper_stepdir"] = function (block, generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["import_time"] = "import time";
+      generator.definitions_["stepper_stepdir_state"] = "_stepper_pins = {}";
+      generator.definitions_["stepper_stepdir_func"] =
+`def _stepper_stepdir(step_pin, dir_pin, pasos, delay_us):
+    key = (step_pin, dir_pin)
+    if key not in _stepper_pins:
+        _stepper_pins[key] = [Pin(step_pin, Pin.OUT), Pin(dir_pin, Pin.OUT)]
+    step, direc = _stepper_pins[key]
+    direc.value(1 if pasos >= 0 else 0)
+    for _ in range(abs(pasos)):
+        step.value(1)
+        time.sleep_us(delay_us)
+        step.value(0)
+        time.sleep_us(delay_us)`;
+      const stepPin = block.getFieldValue("STEP");
+      const dirPin = block.getFieldValue("DIR");
+      const steps = generator.valueToCode(block, "STEPS", ORDER_ATOMIC) || '0';
+      const delay = generator.valueToCode(block, "DELAY_US", ORDER_ATOMIC) || '800';
+      return `_stepper_stepdir(${stepPin}, ${dirPin}, ${steps}, ${delay})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_stepper_28byj"] = function (block, generator) {
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      generator.definitions_["import_time"] = "import time";
+      generator.definitions_["stepper_28byj_state"] = "_stepper28_pins = {}\n_stepper28_idx = {}";
+      generator.definitions_["stepper_28byj_func"] =
+`def _stepper_28byj(in1, in2, in3, in4, pasos, delay_us):
+    key = (in1, in2, in3, in4)
+    if key not in _stepper28_pins:
+        _stepper28_pins[key] = [Pin(in1, Pin.OUT), Pin(in2, Pin.OUT), Pin(in3, Pin.OUT), Pin(in4, Pin.OUT)]
+        _stepper28_idx[key] = 0
+    pines = _stepper28_pins[key]
+    secuencia = [
+        [1, 0, 0, 0], [1, 1, 0, 0], [0, 1, 0, 0], [0, 1, 1, 0],
+        [0, 0, 1, 0], [0, 0, 1, 1], [0, 0, 0, 1], [1, 0, 0, 1]
+    ]
+    paso_dir = 1 if pasos >= 0 else -1
+    idx = _stepper28_idx[key]
+    for _ in range(abs(pasos)):
+        idx = (idx + paso_dir) % 8
+        fase = secuencia[idx]
+        for i in range(4):
+            pines[i].value(fase[i])
+        time.sleep_us(delay_us)
+    _stepper28_idx[key] = idx
+    for p in pines:
+        p.value(0)`;
+      const in1 = block.getFieldValue("IN1");
+      const in2 = block.getFieldValue("IN2");
+      const in3 = block.getFieldValue("IN3");
+      const in4 = block.getFieldValue("IN4");
+      const delayUs = block.getFieldValue("DELAY_US");
+      const steps = generator.valueToCode(block, "STEPS", ORDER_ATOMIC) || '0';
+      return `_stepper_28byj(${in1}, ${in2}, ${in3}, ${in4}, ${steps}, ${delayUs})\n`;
+    };
+
+    // ---------- GENERADORES NEOPIXEL ----------
+
+    Blockly.Python.forBlock["esp32_neopixel_init"] = function (block, generator) {
+      generator.definitions_["import_neopixel"] = "import neopixel";
+      generator.definitions_["import_machine_pin"] = "from machine import Pin";
+      const pin = block.getFieldValue("PIN");
+      const count = block.getFieldValue("COUNT");
+      return `pin_rgb = Pin(${pin}, Pin.OUT)\n_np = neopixel.NeoPixel(pin_rgb, ${count})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_neopixel_set"] = function (block, generator) {
+      const index = block.getFieldValue("INDEX");
+      const r = generator.valueToCode(block, "R", ORDER_ATOMIC) || '0';
+      const g = generator.valueToCode(block, "G", ORDER_ATOMIC) || '0';
+      const b = generator.valueToCode(block, "B", ORDER_ATOMIC) || '0';
+      return `_np[${index}] = (${r}, ${g}, ${b})\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_neopixel_fill"] = function (block, generator) {
+      const r = generator.valueToCode(block, "R", ORDER_ATOMIC) || '0';
+      const g = generator.valueToCode(block, "G", ORDER_ATOMIC) || '0';
+      const b = generator.valueToCode(block, "B", ORDER_ATOMIC) || '0';
+      return `_np.fill((${r}, ${g}, ${b}))\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_neopixel_show"] = function (block, generator) {
+      return `_np.write()\n`;
+    };
+
+    Blockly.Python.forBlock["esp32_neopixel_clear"] = function (block, generator) {
+      return `_np.fill((0, 0, 0))\n_np.write()\n`;
+    };
+
+
+    // ---------- BLOQUES SERVIDOR WEB ----------
+
+    Blockly.Blocks["esp32_web_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌐 Inicializar servidor web puerto:")
+          .appendField(new Blockly.FieldNumber(80, 1, 65535, 1), "PORT");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Crea un servidor HTTP en la ESP32. Colocalo en CONFIGURACION.");
+      }
+    };
+
+    Blockly.Blocks["esp32_web_route"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🛣️ Ruta")
+          .appendField(new Blockly.FieldDropdown([["GET", "GET"], ["POST", "POST"]]), "METHOD")
+          .appendField("URL:")
+          .appendField(new Blockly.FieldTextInput("/"), "PATH");
+        this.appendStatementInput("STACK").appendField("respuesta:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Define una ruta del servidor web. Usa 'Enviar respuesta web' dentro.");
+      }
+    };
+
+    Blockly.Blocks["esp32_web_response"] = {
+      init: function () {
+        this.appendValueInput("CONTENT").appendField("📤 Enviar respuesta web:");
+        this.appendDummyInput()
+          .appendField("tipo:")
+          .appendField(new Blockly.FieldDropdown([["text/html", "text/html"], ["application/json", "application/json"], ["text/plain", "text/plain"]]), "TYPE");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Envia una respuesta al navegador. Usalo dentro de una ruta.");
+      }
+    };
+
+    Blockly.Blocks["esp32_web_run"] = {
+      init: function () {
+        this.appendDummyInput().appendField("▶️ Atender peticiones web (no bloqueante)");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#3b82f6");
+        this.setTooltip("Procesa una peticion HTTP pendiente. Colocalo en el BUCLE PRINCIPAL.");
+      }
+    };
+
+    // ---------- BLOQUES WIFI AP ----------
+
+    Blockly.Blocks["esp32_wifi_ap"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📡 Crear red WiFi (AP)  SSID:")
+          .appendField(new Blockly.FieldTextInput("ESP32-AP"), "SSID")
+          .appendField("Clave:")
+          .appendField(new Blockly.FieldTextInput("12345678"), "PASS");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#8b5cf6");
+        this.setTooltip("La ESP32 crea su propia red WiFi. Colocalo en CONFIGURACION.");
+      }
+    };
+
+    // ---------- BLOQUES HTTP CLIENT ----------
+
+    Blockly.Blocks["esp32_http_get"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌍 HTTP GET URL:")
+          .appendField(new Blockly.FieldTextInput("http://api.example.com/datos"), "URL");
+        this.setOutput(true, "String");
+        this.setColour("#10b981");
+        this.setTooltip("Hace una peticion GET y retorna la respuesta como texto.");
+      }
+    };
+
+    Blockly.Blocks["esp32_http_post"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🌍 HTTP POST URL:")
+          .appendField(new Blockly.FieldTextInput("http://api.example.com/datos"), "URL");
+        this.appendValueInput("DATA").appendField("datos JSON:");
+        this.setOutput(true, "String");
+        this.setColour("#10b981");
+        this.setTooltip("Hace una peticion POST con datos JSON y retorna la respuesta.");
+      }
+    };
+
+    // ---------- BLOQUES MQTT ----------
+
+    Blockly.Blocks["esp32_mqtt_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📨 Conectar MQTT broker:")
+          .appendField(new Blockly.FieldTextInput("broker.hivemq.com"), "SERVER")
+          .appendField("puerto:")
+          .appendField(new Blockly.FieldNumber(1883, 1, 65535, 1), "PORT");
+        this.appendDummyInput()
+          .appendField("cliente ID:")
+          .appendField(new Blockly.FieldTextInput("esp32_client"), "CLIENT_ID");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#f59e0b");
+        this.setTooltip("Conecta a un broker MQTT. Colocalo en CONFIGURACION.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mqtt_publish"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📤 MQTT publicar en topic:")
+          .appendField(new Blockly.FieldTextInput("casa/sala/temperatura"), "TOPIC");
+        this.appendValueInput("MSG").appendField("mensaje:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#f59e0b");
+        this.setTooltip("Publica un mensaje en un topic MQTT.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mqtt_subscribe"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("📥 MQTT suscribirse a topic:")
+          .appendField(new Blockly.FieldTextInput("casa/sala/luz"), "TOPIC");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#f59e0b");
+        this.setTooltip("Se suscribe a un topic para recibir mensajes.");
+      }
+    };
+
+    Blockly.Blocks["esp32_mqtt_check"] = {
+      init: function () {
+        this.appendDummyInput().appendField("📡 MQTT verificar mensajes");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#f59e0b");
+        this.setTooltip("Revisa si llegaron mensajes MQTT. Colocalo en el BUCLE PRINCIPAL.");
+      }
+    };
+
+    // ---------- BLOQUES WEBSOCKET ----------
+
+    Blockly.Blocks["esp32_websocket_init"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("🔌 Inicializar WebSocket server puerto:")
+          .appendField(new Blockly.FieldNumber(81, 1, 65535, 1), "PORT");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Crea un servidor WebSocket para comunicacion en tiempo real. Colocalo en CONFIGURACION.");
+      }
+    };
+
+    Blockly.Blocks["esp32_websocket_send"] = {
+      init: function () {
+        this.appendValueInput("MSG").appendField("🔌 WebSocket enviar a cliente:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Envia un mensaje al ultimo cliente WebSocket conectado.");
+      }
+    };
+
+    Blockly.Blocks["esp32_websocket_broadcast"] = {
+      init: function () {
+        this.appendValueInput("MSG").appendField("📢 WebSocket broadcast:");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Envia un mensaje a TODOS los clientes WebSocket conectados.");
+      }
+    };
+
+    // ---------- BLOQUES NTP ----------
+
+    Blockly.Blocks["esp32_ntp_sync"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("⏰ Sincronizar hora NTP servidor:")
+          .appendField(new Blockly.FieldTextInput("pool.ntp.org"), "SERVER");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#06b6d4");
+        this.setTooltip("Sincroniza la hora con un servidor NTP. Colocalo en CONFIGURACION.");
+      }
+    };
+
+    Blockly.Blocks["esp32_ntp_get_time"] = {
+      init: function () {
+        this.appendDummyInput().appendField("⏰ Obtener hora actual (ISO)");
+        this.setOutput(true, "String");
+        this.setColour("#06b6d4");
+        this.setTooltip("Retorna la hora actual como texto ISO. Requiere sincronizar NTP primero.");
+      }
+    };
+
+
+    // ---------- GENERADORES SERVIDOR WEB ----------
+
+    Blockly.Python.forBlock["esp32_web_init"] = function (block, generator) {
+      generator.definitions_["import_socket"] = "import socket";
+      generator.definitions_["import_select"] = "import select";
+      const port = block.getFieldValue("PORT");
+      let code = `_web_routes = {}
+`;
+      code += `_web_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+`;
+      code += `_web_sock.bind(('0.0.0.0', ${port}))
+`;
+      code += `_web_sock.listen(5)
+`;
+      code += `_web_sock.setblocking(False)
+`;
+      code += `_web_poll = select.poll()
+`;
+      code += `_web_poll.register(_web_sock, select.POLLIN)
+`;
+      code += `_web_clients = {}
+`;
+      code += `_web_response_buf = {}
+`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_web_route"] = function (block, generator) {
+      const method = block.getFieldValue("METHOD");
+      const path = block.getFieldValue("PATH").replace(/'/g, "\'");
+      const body = _reindentBody(generator, generator.statementToCode(block, "STACK"), "    ");
+      let code = `def _route_${method.toLowerCase()}_${path.replace(/[^a-zA-Z0-9]/g, "_")}(req_path, req_body):
+`;
+      code += body;
+      code += `_web_routes[('${method}', '${path}')] = _route_${method.toLowerCase()}_${path.replace(/[^a-zA-Z0-9]/g, "_")}
+`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_web_response"] = function (block, generator) {
+      const content = generator.valueToCode(block, "CONTENT", ORDER_ATOMIC) || "''";
+      const type = block.getFieldValue("TYPE");
+      return `_web_response_buf['status'] = '200 OK'
+_web_response_buf['type'] = '${type}'
+_web_response_buf['body'] = str(${content})
+`;
+    };
+
+Blockly.Python.forBlock["esp32_web_run"] = function (block, generator) {
+  generator.definitions_["import_time"] = "import time";
+  let code = `events = _web_poll.poll(10)\n`;
+  code += `for sock, evt in events:\n`;
+  code += `    if sock is _web_sock:\n`;
+  code += `        try:\n`;
+  code += `            cl, addr = _web_sock.accept()\n`;
+  code += `            cl.setblocking(False)\n`;
+  code += `            _web_poll.register(cl, select.POLLIN)\n`;
+  code += `            _web_clients[id(cl)] = {'sock': cl, 'buf': b''}\n`;
+  code += `        except:\n`;
+  code += `            pass\n`;
+  code += `    else:\n`;
+  code += `        cid = id(sock)\n`;
+  code += `        if cid in _web_clients:\n`;
+  code += `            try:\n`;
+  code += `                data = sock.recv(1024)\n`;
+  code += `                if data:\n`;
+  code += `                    _web_clients[cid]['buf'] += data\n`;
+  code += `                    if b'\\r\\n\\r\\n' in _web_clients[cid]['buf']:\n`;
+  code += `                        req = _web_clients[cid]['buf'].decode('utf-8', 'ignore')\n`;
+  code += `                        lines = req.split('\\r\\n')\n`;
+  code += `                        if len(lines) > 0:\n`;
+  code += `                            parts = lines[0].split()\n`;
+  code += `                            if len(parts) >= 2:\n`;
+  code += `                                req_method = parts[0]\n`;
+  code += `                                req_path = parts[1]\n`;
+  code += `                                req_body = ''\n`;
+  code += `                                if '\\r\\n\\r\\n' in req:\n`;
+  code += `                                    req_body = req.split('\\r\\n\\r\\n', 1)[1]\n`;
+  
+  // CORRECCIÓN: Se elimina _web_response_buf.clear() y se asignan valores base
+  code += `                                _web_response_buf = {'status': '200 OK', 'type': 'text/html', 'body': ''}\n`;
+  code += `                                handler = _web_routes.get((req_method, req_path))\n`;
+  code += `                                if handler:\n`;
+  code += `                                    handler(req_path, req_body)\n`;
+  code += `                                else:\n`;
+  code += `                                    _web_response_buf = {'status': '404 Not Found', 'type': 'text/plain', 'body': 'Not Found'}\n`;
+  
+  code += `                                resp = 'HTTP/1.1 ' + _web_response_buf.get('status', '200 OK') + '\\r\\n'\n`;
+  code += `                                resp += 'Content-Type: ' + _web_response_buf.get('type', 'text/html') + '\\r\\n'\n`;
+  code += `                                resp += 'Connection: close\\r\\n\\r\\n'\n`;
+  code += `                                resp += _web_response_buf.get('body', '')\n`;
+  code += `                                sock.send(resp.encode())\n`;
+  code += `                        _web_poll.unregister(sock)\n`;
+  code += `                        sock.close()\n`;
+  code += `                        del _web_clients[cid]\n`;
+  code += `                else:\n`;
+  code += `                    _web_poll.unregister(sock)\n`;
+  code += `                    sock.close()\n`;
+  code += `                    del _web_clients[cid]\n`;
+  code += `            except Exception as e:\n`;
+  code += `                try:\n`;
+  code += `                    _web_poll.unregister(sock)\n`;
+  code += `                    sock.close()\n`;
+  code += `                except:\n`;
+  code += `                    pass\n`;
+  code += `                if cid in _web_clients:\n`;
+  code += `                    del _web_clients[cid]\n`;
+  return code;
+};
+    // ---------- GENERADORES WIFI AP ----------
+
+    Blockly.Python.forBlock["esp32_wifi_ap"] = function (block, generator) {
+      generator.definitions_["import_network"] = "import network";
+      const ssid = block.getFieldValue("SSID").replace(/'/g, "\'");
+      const pass_ = block.getFieldValue("PASS").replace(/'/g, "\'");
+      let code = `_ap = network.WLAN(network.AP_IF)
+`;
+      code += `_ap.active(True)
+`;
+      code += `_ap.config(essid='${ssid}', password='${pass_}', authmode=network.AUTH_WPA_WPA2_PSK)
+`;
+      code += `print('AP activo:', _ap.ifconfig())
+`;
+      return code;
+    };
+
+    // ---------- GENERADORES HTTP CLIENT ----------
+
+    Blockly.Python.forBlock["esp32_http_get"] = function (block, generator) {
+      generator.definitions_["import_urequests"] = "import urequests";
+      const url = block.getFieldValue("URL").replace(/'/g, "\'");
+      let code = `try:
+`;
+      code += `    _r = urequests.get('${url}')
+`;
+      code += `    _http_resp = _r.text
+`;
+      code += `    _r.close()
+`;
+      code += `except Exception as _e:
+`;
+      code += `    _http_resp = str(_e)
+`;
+      return [`_http_resp`, ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_http_post"] = function (block, generator) {
+      generator.definitions_["import_urequests"] = "import urequests";
+      const url = block.getFieldValue("URL").replace(/'/g, "\'");
+      const data = generator.valueToCode(block, "DATA", ORDER_ATOMIC) || "''";
+      let code = `try:
+`;
+      code += `    _r = urequests.post('${url}', data=str(${data}).encode(), headers={'Content-Type': 'application/json'})
+`;
+      code += `    _http_resp = _r.text
+`;
+      code += `    _r.close()
+`;
+      code += `except Exception as _e:
+`;
+      code += `    _http_resp = str(_e)
+`;
+      return [`_http_resp`, ORDER_ATOMIC];
+    };
+
+    // ---------- GENERADORES MQTT ----------
+
+    Blockly.Python.forBlock["esp32_mqtt_init"] = function (block, generator) {
+      generator.definitions_["import_umqtt"] = "from umqtt.simple import MQTTClient";
+      const server = block.getFieldValue("SERVER").replace(/'/g, "\'");
+      const port = block.getFieldValue("PORT");
+      const clientId = block.getFieldValue("CLIENT_ID").replace(/'/g, "\'");
+      let code = `_mqtt_client = MQTTClient('${clientId}', '${server}', ${port})
+`;
+      code += `_mqtt_client.connect()
+`;
+      code += `_mqtt_topics = {}
+`;
+      code += `print('MQTT conectado a ${server}')
+`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_mqtt_publish"] = function (block, generator) {
+      const topic = block.getFieldValue("TOPIC").replace(/'/g, "\'");
+      const msg = generator.valueToCode(block, "MSG", ORDER_ATOMIC) || "''";
+      return `_mqtt_client.publish('${topic}', str(${msg}))
+`;
+    };
+
+    Blockly.Python.forBlock["esp32_mqtt_subscribe"] = function (block, generator) {
+      const topic = block.getFieldValue("TOPIC").replace(/'/g, "\'");
+      let code = `_mqtt_client.subscribe('${topic}')
+`;
+      code += `_mqtt_topics['${topic}'] = None
+`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_mqtt_check"] = function (block, generator) {
+      let code = `try:
+`;
+      code += `    _mqtt_client.check_msg()
+`;
+      code += `except Exception as _e:
+`;
+      code += `    pass
+`;
+      return code;
+    };
+
+    // ---------- GENERADORES WEBSOCKET ----------
+
+Blockly.Python.forBlock["esp32_websocket_init"] = function (block, generator) {
+  generator.definitions_["import_socket"] = "import socket";
+  generator.definitions_["import_select"] = "import select";
+  generator.definitions_["import_struct"] = "import struct";
+  generator.definitions_["import_hashlib"] = "import hashlib";
+  generator.definitions_["import_ubinascii"] = "import ubinascii";
+
+  const port = block.getFieldValue("PORT") || 81;
+
+  let code = `_ws_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n`;
+  code += `_ws_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n`; // Corrección 1
+  code += `_ws_sock.bind(('0.0.0.0', ${port}))\n`;
+  code += `_ws_sock.listen(5)\n`;
+  code += `_ws_sock.setblocking(False)\n`;
+  code += `_ws_poll = select.poll()\n`;
+  code += `_ws_poll.register(_ws_sock, select.POLLIN)\n`;
+  code += `_ws_clients = {}\n`;
+
+  code += `def _ws_send_frame(sock, msg):\n`;
+  code += `    data = msg.encode('utf-8')\n`;
+  code += `    length = len(data)\n`;
+  code += `    if length < 126:\n`;
+  code += `        header = struct.pack('!BB', 0x81, length)\n`;
+  code += `    elif length < 65536:\n`;
+  code += `        header = struct.pack('!BBH', 0x81, 126, length)\n`;
+  code += `    else:\n`;
+  code += `        header = struct.pack('!BBQ', 0x81, 127, length)\n`;
+  code += `    sock.send(header + data)\n\n`;
+
+  code += `_WS_CLOSED = object()\n\n`;
+
+  code += `def _ws_feed(cid):\n`;
+  code += `    sock = _ws_clients[cid]['sock']\n`;
+  code += `    try:\n`;
+  code += `        chunk = sock.recv(256)\n`;
+  code += `    except OSError as e:\n`;
+  code += `        if len(e.args) and e.args[0] in (11, 35):\n`;
+  code += `            return True\n`;
+  code += `        return False\n`;
+  code += `    if not chunk:\n`;
+  code += `        return False\n`;
+  code += `    _ws_clients[cid]['buf'].extend(chunk)\n`;
+  code += `    return True\n\n`;
+
+  code += `def _ws_try_parse(cid):\n`;
+  code += `    buf = _ws_clients[cid]['buf']\n`;
+  code += `    if len(buf) < 2:\n`;
+  code += `        return None\n`;
+  code += `    opcode = buf[0] & 0x0f\n`;
+  code += `    length = buf[1] & 0x7f\n`;
+  code += `    pos = 2\n`;
+  code += `    if length == 126:\n`;
+  code += `        if len(buf) < pos + 2: return None\n`;
+  code += `        length = struct.unpack('!H', bytes(buf[pos:pos+2]))[0]\n`;
+  code += `        pos += 2\n`;
+  code += `    elif length == 127:\n`;
+  code += `        if len(buf) < pos + 8: return None\n`;
+  code += `        length = struct.unpack('!Q', bytes(buf[pos:pos+8]))[0]\n`;
+  code += `        pos += 8\n`;
+  code += `    if len(buf) < pos + 4:\n`;
+  code += `        return None\n`;
+  code += `    mask = buf[pos:pos+4]\n`;
+  code += `    pos += 4\n`;
+  code += `    if len(buf) < pos + length:\n`;
+  code += `        return None\n`;
+  code += `    data = bytearray(buf[pos:pos+length])\n`;
+  code += `    del buf[:pos+length]\n`;
+  code += `    if opcode == 0x08:\n`;
+  code += `        return _WS_CLOSED\n`;
+  code += `    for i in range(len(data)):\n`;
+  code += `        data[i] ^= mask[i % 4]\n`;
+  code += `    try:\n`;
+  code += `        return data.decode('utf-8')\n`;
+  code += `    except:\n`;
+  code += `        return _WS_CLOSED\n\n`;
+
+  code += `def _ws_accept_handshake(sock):\n`;
+  code += `    data = b''\n`;
+  code += `    while b'\\r\\n\\r\\n' not in data:\n`;
+  code += `        chunk = sock.recv(1024)\n`;
+  code += `        if not chunk: break\n`;
+  code += `        data += chunk\n`;
+  code += `    req = data.decode('utf-8', 'ignore')\n`;
+  code += `    key = ''\n`;
+  code += `    for line in req.split('\\r\\n'):\n`;
+  code += `        if line.startswith('Sec-WebSocket-Key:'):\n`;
+  code += `            key = line.split(':')[1].strip()\n`;
+  code += `            break\n`;
+  code += `    if key:\n`;
+  code += `        accept = ubinascii.b2a_base64(hashlib.sha1((key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').encode()).digest()).strip().decode()\n`;
+  code += `        resp = 'HTTP/1.1 101 Switching Protocols\\r\\n'\n`;
+  code += `        resp += 'Upgrade: websocket\\r\\n'\n`;
+  code += `        resp += 'Connection: Upgrade\\r\\n'\n`;
+  code += `        resp += 'Sec-WebSocket-Accept: ' + accept + '\\r\\n\\r\\n'\n`;
+  code += `        sock.send(resp.encode())\n`;
+  code += `        return True\n`;
+  code += `    return False\n\n`;
+
+  code += `_ws_last_client = None\n`;
+  return code;
+};
+
+Blockly.Python.forBlock["esp32_websocket_send"] = function (block, generator) {
+  const msg = generator.valueToCode(block, "MSG", generator.ORDER_ATOMIC) || "''";
+  
+  // Corrección 2: Sangría arreglada
+  let code = `if _ws_last_client:\n`;
+  code += `    try:\n`;
+  code += `        _ws_send_frame(_ws_last_client, str(${msg}))\n`;
+  code += `    except:\n`;
+  code += `        pass\n`;
+  return code;
+};
+
+Blockly.Python.forBlock["esp32_websocket_broadcast"] = function (block, generator) {
+  const msg = generator.valueToCode(block, "MSG", generator.ORDER_ATOMIC) || "''";
+  let code = `for _ws_cid in list(_ws_clients.keys()):\n`;
+  code += `    try:\n`;
+  code += `        _ws_send_frame(_ws_clients[_ws_cid]['sock'], str(${msg}))\n`;
+  code += `    except Exception:\n`;
+  code += `        try:\n`;
+  code += `            _ws_poll.unregister(_ws_clients[_ws_cid]['sock'])\n`;
+  code += `            _ws_clients[_ws_cid]['sock'].close()\n`;
+  code += `        except:\n`;
+  code += `            pass\n`;
+  code += `        del _ws_clients[_ws_cid]\n`;
+  return code;
+};
+
+    
+    // ---------- GENERADORES HA5883 (CLON QMC5883, DIR 0x0D) ----------
+
+    const HA5883_FUNC_DEF =
+`def _leer_ha5883():
+    global _ha_ready
+    addr = 0x0D
+    if not _ha_ready:
+        _i2c.writeto_mem(addr, 0x0B, bytes([0x01]))
+        _i2c.writeto_mem(addr, 0x09, bytes([0x1D]))
+        _ha_ready = True
+        time.sleep_ms(10)
+    d = _i2c.readfrom_mem(addr, 0x00, 6)
+    def _s16(l, h):
+        v = (h << 8) | l
+        return v - 65536 if v > 32767 else v
+    x = _s16(d[0], d[1])
+    y = _s16(d[2], d[3])
+    z = _s16(d[4], d[5])
+    return (x, y, z)`;
+
+    function _ha5883Setup(generator) {
+      generator.definitions_["import_time"] = "import time";
+      generator.definitions_["ha5883_state"] = "_ha_ready = False";
+      generator.definitions_["ha5883_func"] = HA5883_FUNC_DEF;
+    }
+
+    Blockly.Python.forBlock["esp32_ha5883_read"] = function (block, generator) {
+      _ha5883Setup(generator);
+      return [`_leer_ha5883()`, generator.ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_ha5883_x"] = function (block, generator) {
+      _ha5883Setup(generator);
+      return [`_leer_ha5883()[0]`, generator.ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_ha5883_y"] = function (block, generator) {
+      _ha5883Setup(generator);
+      return [`_leer_ha5883()[1]`, generator.ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_ha5883_z"] = function (block, generator) {
+      _ha5883Setup(generator);
+      return [`_leer_ha5883()[2]`, generator.ORDER_ATOMIC];
+    };
+
+    Blockly.Python.forBlock["esp32_ha5883_heading"] = function (block, generator) {
+      _ha5883Setup(generator);
+      generator.definitions_["import_math"] = "import math";
+      generator.definitions_["ha5883_heading_func"] =
+`def _leer_ha5883_heading():
+    try:
+        x, y, z = _leer_ha5883()
+        h = math.atan2(y, x) * 180.0 / math.pi
+        if h < 0:
+            h += 360.0
+        return round(h, 2)
+    except Exception:
+        return 0.0`;
+      return [`_leer_ha5883_heading()`, generator.ORDER_ATOMIC];
+    };
+
+// ---------- GENERADORES NTP ----------
+
+    Blockly.Python.forBlock["esp32_ntp_sync"] = function (block, generator) {
+      generator.definitions_["import_ntptime"] = "import ntptime";
+      generator.definitions_["import_time"] = "import time";
+      const server = block.getFieldValue("SERVER").replace(/'/g, "\'");
+      let code = `ntptime.host = '${server}'
+`;
+      code += `try:
+`;
+      code += `    ntptime.settime()
+`;
+      code += `    print('Hora sincronizada:', time.localtime())
+`;
+      code += `except Exception as _e:
+`;
+      code += `    print('Error NTP:', _e)
+`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_ntp_get_time"] = function (block, generator) {
+      generator.definitions_["import_time"] = "import time";
+      return [`time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())`, ORDER_ATOMIC];
+    };
+
+
+    Blockly.Blocks["esp32_websocket_run"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔌 WebSocket atender conexiones (no bloqueante)");
+        this.setPreviousStatement(true, null);
+        this.setNextStatement(true, null);
+        this.setColour("#ec4899");
+        this.setTooltip("Acepta y gestiona conexiones WebSocket. Colocalo en el BUCLE PRINCIPAL.");
+      }
+    };
+
+    Blockly.Blocks["esp32_websocket_read"] = {
+      init: function () {
+        this.appendDummyInput().appendField("🔌 WebSocket leer mensaje recibido");
+        this.setOutput(true, "String");
+        this.setColour("#ec4899");
+        this.setTooltip("Retorna el ultimo mensaje WebSocket recibido o None.");
+      }
+    };
+
+
+    Blockly.Python.forBlock["esp32_websocket_run"] = function (block, generator) {
+      let code = `events = _ws_poll.poll(10)
+`;
+      code += `for sock, evt in events:
+`;
+      code += `    if sock is _ws_sock:
+`;
+      code += `        try:
+`;
+      code += `            cl, addr = _ws_sock.accept()
+`;
+      code += `            cl.settimeout(2)
+`;
+      code += `            if _ws_accept_handshake(cl):
+`;
+      code += `                cl.setblocking(False)
+`;
+      code += `                _ws_poll.register(cl, select.POLLIN)
+`;
+      code += `                _ws_clients[id(cl)] = {'sock': cl, 'buf': bytearray()}
+`;
+      code += `                _ws_last_client = cl
+`;
+      code += `            else:
+`;
+      code += `                cl.close()
+`;
+      code += `        except:
+`;
+      code += `            try:
+`;
+      code += `                cl.close()
+`;
+      code += `            except:
+`;
+      code += `                pass
+`;
+      code += `    else:
+`;
+      code += `        cid = id(sock)
+`;
+      code += `        if cid in _ws_clients:
+`;
+      code += `            if _ws_feed(cid):
+`;
+      code += `                while True:
+`;
+      code += `                    msg = _ws_try_parse(cid)
+`;
+      code += `                    if msg is None:
+`;
+      code += `                        break
+`;
+      code += `                    if msg is _WS_CLOSED:
+`;
+      code += `                        try:
+`;
+      code += `                            _ws_poll.unregister(sock)
+`;
+      code += `                            sock.close()
+`;
+      code += `                        except:
+`;
+      code += `                            pass
+`;
+      code += `                        if cid in _ws_clients:
+`;
+      code += `                            del _ws_clients[cid]
+`;
+      code += `                        break
+`;
+      code += `                    else:
+`;
+      code += `                        _ws_clients[cid]['last_msg'] = msg
+`;
+      code += `                        _ws_last_client = sock
+`;
+      code += `            else:
+`;
+      code += `                try:
+`;
+      code += `                    _ws_poll.unregister(sock)
+`;
+      code += `                    sock.close()
+`;
+      code += `                except:
+`;
+      code += `                    pass
+`;
+      code += `                if cid in _ws_clients:
+`;
+      code += `                    del _ws_clients[cid]
+`;
+      return code;
+    };
+
+    Blockly.Python.forBlock["esp32_websocket_read"] = function (block, generator) {
+      let code = `None
+`;
+      code += `for _ws_cid in list(_ws_clients.keys()):
+`;
+      code += `    if 'last_msg' in _ws_clients[_ws_cid]:
+`;
+      code += `        _ws_msg = _ws_clients[_ws_cid]['last_msg']
+`;
+      code += `        del _ws_clients[_ws_cid]['last_msg']
+`;
+      code += `        break
+`;
+      code += `else:
+`;
+      code += `    _ws_msg = None
+`;
+      // Necesitamos retornar _ws_msg, pero el código anterior es un poco complejo para una expresión
+      // Usaremos un helper
+      generator.definitions_["ws_read_helper"] = `def _ws_read_msg():
+    for cid in list(_ws_clients.keys()):
+        if 'last_msg' in _ws_clients[cid]:
+            msg = _ws_clients[cid]['last_msg']
+            del _ws_clients[cid]['last_msg']
+            return msg
+    return None
+`;
+      return [`_ws_read_msg()`, ORDER_ATOMIC];
+    };
+
+    // ============================================
+    // INICIALIZAR WORKSPACE
+    // ============================================
+
+    const workspace = Blockly.inject("blocklyDiv", {
+      toolbox: document.getElementById("toolbox"),
+      trashcan: true,
+      scrollbars: true,
+      zoom: { controls: true, wheel: true, startScale: 0.9 },
+      move: { scrollbars: true, drag: true, wheel: false },
+      grid: { spacing: 25, length: 3, colour: "#334155", snap: false }
+    });
+    
+    // 🛠️ Función dedentCommon: quita el indent mínimo común de todas las líneas
+function dedentCommon(code) {
+  const lines = code.split("\n");
+  let minIndent = Infinity;
+  for (const line of lines) {
+    if (line.trim() === "") continue;
+    const match = line.match(/^(\s*)/);
+    const indentLen = match ? match[1].length : 0;
+    if (indentLen < minIndent) minIndent = indentLen;
+  }
+  if (minIndent === Infinity || minIndent === 0) return code;
+  return lines.map(line => line.slice(minIndent)).join("\n");
+}
+
+function generarCodigoCompleto() {
+  const boardName = document.getElementById("boardSelect").value;
+  const topBlocks = workspace.getTopBlocks(true);
+  const setupBlock = topBlocks.find(b => b.type === "esp32_setup");
+  const loopBlock = topBlocks.find(b => b.type === "esp32_loop");
+
+  Blockly.Python.init(workspace);
+  const setupCode = setupBlock ? Blockly.Python.statementToCode(setupBlock, "STACK") : "";
+  const loopCode = loopBlock ? Blockly.Python.statementToCode(loopBlock, "STACK") : "";
+
+  topBlocks
+    .filter(b => b.type === "procedures_defnoreturn" || b.type === "procedures_defreturn")
+    .forEach(b => Blockly.Python.blockToCode(b));
+    
+  const preamble = Blockly.Python.finish("").trim();
+
+  let out = `# Placa objetivo: ${boardName}\n`;
+  if (preamble) out += preamble + "\n\n";
+  if (!setupBlock && !loopBlock) {
+    return out + '# Arrastra el bloque "⚙️ CONFIGURACION" y/o "🔁 BUCLE PRINCIPAL" desde la categoria Control para empezar.\n';
+  }
+
+  // Se aplica la limpieza de sangría sobre todo el bloque de configuración inicial
+  if (setupCode.trim()) {
+    out += "# --- Configuracion inicial ---\n" + dedentCommon(setupCode) + "\n";
+  }
+
+  out += "\n# --- Bucle principal ---\nwhile True:\n";
+  
+  // Asegura que las líneas dentro de while True tengan exactamente 4 espacios
+  if (loopCode.trim()) {
+    out += loopCode;
+  } else {
+    out += "    pass\n";
+  }
+
+  return out;
+}
+
+    function actualizarVistaPrevia() {
+      try {
+        document.getElementById("codePreview").innerText = generarCodigoCompleto();
+      } catch (e) {
+        document.getElementById("codePreview").innerText = "# Error generando codigo:\n# " + e.message;
+        console.error(e);
+      }
+    }
+
+    workspace.addChangeListener(function (event) {
+      if (event.isUiEvent) return;
+      actualizarVistaPrevia();
+    });
+    document.getElementById("boardSelect").addEventListener("change", actualizarVistaPrevia);
+
+    Blockly.serialization.workspaces.load({
+      blocks: {
+        languageVersion: 0,
+        blocks: [
+          { type: "esp32_setup", x: 40, y: 40 },
+          { type: "esp32_loop", x: 40, y: 160 }
+        ]
+      }
+    }, workspace);
+    actualizarVistaPrevia();
+
+    function log(msg) {
+      const consoleLog = document.getElementById("consoleLog");
+      consoleLog.innerText += "\n" + msg;
+      consoleLog.scrollTop = consoleLog.scrollHeight;
+    }
+
+
+    // ============================================
+    // DESCARGAR Y CARGAR BLOQUES (JSON)
+    // ============================================
+
+    function descargarBloques() {
+      const estado = Blockly.serialization.workspaces.save(workspace);
+      const jsonStr = JSON.stringify(estado, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "proyecto_esp32.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      log(">> Proyecto descargado como proyecto_esp32.json");
+    }
+
+    function cargarBloques(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const estado = JSON.parse(e.target.result);
+          workspace.clear();
+          Blockly.serialization.workspaces.load(estado, workspace);
+          actualizarVistaPrevia();
+          log(">> Proyecto cargado desde " + file.name);
+        } catch (err) {
+          alert("Error al cargar el archivo: " + err.message);
+          log(">> ERROR cargando proyecto: " + err.message);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = "";
+    }
+
+    // ============================================
+    // CONEXION Y ENVIO VIA WEB SERIAL
+    // ============================================
+
+    let serialReader = null;
+
+    // ============================================
+    // SERIAL PLOTTER
+    // ============================================
+
+    const PLOT_COLORS = ["#38bdf8", "#f472b6", "#facc15", "#34d399", "#f87171", "#a78bfa"];
+    const PLOT_MAX_POINTS = 200;
+    let _plotSeries = [];
+    let _serialLineBuf = "";
+
+    function procesarLineaPlot(linea) {
+      const tokens = linea.trim().split(/[,\s]+/).filter(t => t.length > 0);
+      if (tokens.length === 0) return;
+      const valores = tokens.map(Number);
+      if (valores.some(v => Number.isNaN(v))) return; // linea no numerica (ej. un print de texto), se ignora
+      for (let i = 0; i < valores.length; i++) {
+        if (!_plotSeries[i]) _plotSeries[i] = [];
+        _plotSeries[i].push(valores[i]);
+        if (_plotSeries[i].length > PLOT_MAX_POINTS) _plotSeries[i].shift();
+      }
+      dibujarPlot();
+    }
+
+    function dibujarPlot() {
+      const canvas = document.getElementById("serialPlot");
+      if (!canvas || canvas.style.display === "none") return;
+      const ctx = canvas.getContext("2d");
+      const rect = canvas.getBoundingClientRect();
+      if (canvas.width !== rect.width || canvas.height !== rect.height) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      }
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      let allVals = [];
+      _plotSeries.forEach(s => { if (s) allVals = allVals.concat(s); });
+      if (allVals.length === 0) return;
+      let minV = Math.min(...allVals);
+      let maxV = Math.max(...allVals);
+      if (minV === maxV) { minV -= 1; maxV += 1; }
+      const margen = (maxV - minV) * 0.1;
+      minV -= margen; maxV += margen;
+
+      ctx.strokeStyle = "#1e293b";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const y = (h / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      _plotSeries.forEach((serie, idx) => {
+        if (!serie || serie.length < 2) return;
+        ctx.strokeStyle = PLOT_COLORS[idx % PLOT_COLORS.length];
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        serie.forEach((v, i) => {
+          const x = (i / (PLOT_MAX_POINTS - 1)) * w;
+          const y = h - ((v - minV) / (maxV - minV)) * h;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      });
+
+      const legend = document.getElementById("plotLegend");
+      if (legend) {
+        legend.innerHTML = _plotSeries.map((s, i) => {
+          if (!s || s.length === 0) return "";
+          const last = s[s.length - 1];
+          return `<span style="color:${PLOT_COLORS[i % PLOT_COLORS.length]}">● Valor ${i + 1}: ${last.toFixed(2)}</span>`;
+        }).filter(Boolean).join("&nbsp;&nbsp;&nbsp;");
+      }
+    }
+
+    function alternarPlotter() {
+      const pre = document.getElementById("consoleLog");
+      const canvas = document.getElementById("serialPlot");
+      const legend = document.getElementById("plotLegend");
+      const btn = document.getElementById("btnTogglePlot");
+      const enGrafica = canvas.style.display !== "none";
+      if (enGrafica) {
+        canvas.style.display = "none";
+        legend.style.display = "none";
+        pre.style.display = "";
+        btn.innerText = "📈 Graficar";
+      } else {
+        canvas.style.display = "block";
+        legend.style.display = "block";
+        pre.style.display = "none";
+        btn.innerText = "📟 Ver consola";
+        dibujarPlot();
+      }
+    }
+
+    function appendSerialRaw(text) {
+      const consoleLog = document.getElementById("consoleLog");
+      consoleLog.innerText += text;
+      consoleLog.scrollTop = consoleLog.scrollHeight;
+
+      _serialLineBuf += text;
+      const lineas = _serialLineBuf.split("\n");
+      _serialLineBuf = lineas.pop(); // fragmento incompleto, se completa en el proximo chunk
+      lineas.forEach(procesarLineaPlot);
+    }
+
+    async function leerSerialContinuo() {
+      const textDecoder = new TextDecoderStream();
+      port.readable.pipeTo(textDecoder.writable).catch(() => {});
+      serialReader = textDecoder.readable.getReader();
+      try {
+        while (true) {
+          const { value, done } = await serialReader.read();
+          if (done) break;
+          if (value) appendSerialRaw(value);
+        }
+      } catch (err) {
+        log(">> Lectura serie detenida: " + err.message);
+      } finally {
+        try { serialReader.releaseLock(); } catch (e) {}
+      }
+    }
+
+    async function conectarPuerto() {
+      if (!("serial" in navigator)) {
+        alert("Este navegador no soporta Web Serial. Usa Chrome o Edge en computadora.");
+        return;
+      }
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+        // Algunas placas (ESP32-S3/C3 con USB nativo, sin chip USB-serie como CP2102/CH340)
+        // no comienzan a transmitir/recibir datos hasta que el host activa la señal DTR.
+        // Herramientas como Thonny la activan automáticamente; Web Serial no lo hace por
+        // defecto, así que hay que pedirla explícitamente aquí.
+        try {
+          await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+        } catch (sigErr) {
+          // Algunos puertos/plataformas no soportan setSignals; no es motivo para fallar la conexión.
+          log(">> Aviso: no se pudo configurar DTR/RTS (" + sigErr.message + "), continuando de todos modos.");
+        }
+        const textEncoder = new TextEncoderStream();
+        textEncoder.readable.pipeTo(port.writable);
+        writer = textEncoder.writable.getWriter();
+        log(">> Conectado exitosamente al puerto serie.");
+        document.getElementById("btnConectar").innerText = "🟢 Conectado";
+        leerSerialContinuo();
+      } catch (err) {
+        log(">> ERROR al conectar: " + err.message);
+      }
+    }
+
+    async function subirAMicroPython() {
+      if (!writer) {
+        alert("Por favor conecta la ESP32 primero.");
+        return;
+      }
+      const fullPythonCode = generarCodigoCompleto();
+      log(">> Enviando programa a la ESP32...");
+      try {
+        await writer.write("\x03\x03");
+        await new Promise(r => setTimeout(r, 300));
+        await writer.write("\x01");
+        await new Promise(r => setTimeout(r, 300));
+        const escaped = fullPythonCode.replace(/\\/g, '\\\\').replace(/'''/g, "\\'\\'\\'");
+        let fileWriteCmd = "f = open('main.py', 'w')\n" +
+                           "f.write('''" + escaped + "''')\n" +
+                           "f.close()\n";
+        await writer.write(fileWriteCmd);
+        await new Promise(r => setTimeout(r, 500));
+        await writer.write("\x04");
+        await new Promise(r => setTimeout(r, 200));
+        await writer.write("\x04");
+        log(">> Programa cargado y ejecutandose en main.py!");
+      } catch (err) {
+        log(">> ERROR en la transferencia: " + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
