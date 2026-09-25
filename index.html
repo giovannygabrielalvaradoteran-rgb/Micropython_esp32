@@ -2301,28 +2301,35 @@ Blockly.Python.forBlock["esp32_ble_stop_scan"] = function (block, generator) {
 Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
   const uuid = block.getFieldValue("UUID");
   const varName = generator.getVariableName(block.getFieldValue("VAR"));
-  const branch = generator.statementToCode(block, "STACK");
+  let branch = generator.statementToCode(block, "STACK");
+  
+  // Si el bloque está vacío, aseguramos un 'pass'
+  if (!branch || branch.trim() === "") {
+    branch = "    pass\n";
+  }
 
-  // Inyectamos el diccionario de callbacks en las definiciones globales
+  // 1. Declaramos las funciones auxiliares de interrupción en las definiciones globales
   generator.definitions_["ble_rx_callbacks"] = "_ble_rx_callbacks = {}\n";
 
-  // Inyectamos la función auxiliar para limpiar la característica tras leer
   generator.definitions_["ble_irq_updater"] = 
 `def _ble_process_rx(handle):
     for u, h in _ble_handles.items():
         if h == handle and u in _ble_rx_callbacks:
             raw = _ble.gatts_read(handle).decode('utf-8', 'ignore').strip()
-            _ble.gatts_write(handle, b'') # Limpiar buffer
-            _ble_rx_callbacks[u](raw)`;
+            _ble.gatts_write(handle, b'')
+            _ble_rx_callbacks[u](raw)\n`;
 
-  // Definimos la función que ejecutará el contenido del bloque
+  // 2. Inyectamos la función del evento dentro de las definiciones globales
   const funcName = `_on_ble_recv_${uuid.replace(/[^a-zA-Z0-9]/g, "_")}`;
   
-  let code = `def ${funcName}(${varName}):\n`;
-  code += branch ? branch : `    pass\n`;
-  code += `_ble_rx_callbacks['${uuid}'] = ${funcName}\n`;
+  let funcCode = `def ${funcName}(${varName}):\n`;
+  funcCode += branch;
+  funcCode += `_ble_rx_callbacks['${uuid}'] = ${funcName}\n`;
 
-  return code;
+  generator.definitions_[`ble_event_${uuid}`] = funcCode;
+
+  // 3. Importante: Retornamos null o cadena vacía porque es un bloque de evento raíz
+  return "";
 };
     // ---------- GENERADORES ESP-NOW ----------
 
