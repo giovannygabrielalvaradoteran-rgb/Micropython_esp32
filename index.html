@@ -2298,39 +2298,49 @@ Blockly.Python.forBlock["esp32_ble_scan"] = function (block, generator) {
 Blockly.Python.forBlock["esp32_ble_stop_scan"] = function (block, generator) {
   return `_ble.gap_scan(None)\n`;
 };
-Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
+const generator = (typeof pythonGenerator !== "undefined")
+  ? pythonGenerator
+  : Blockly.Python;
+
+const handler = function (block, gen) {
+  // Compatibilidad: en versiones viejas el generador va en 'this'
+  gen = gen || this;
   const uuid = block.getFieldValue("UUID");
-  const varName = generator.getVariableName(block.getFieldValue("VAR"));
-  let branch = generator.statementToCode(block, "STACK");
-  
+  const varName = gen.getVariableName
+    ? gen.getVariableName(block.getFieldValue("VAR"))
+    : gen.variableDB_.getName(block.getFieldValue("VAR"), Blockly.Variables.NAME_TYPE);
+
+  let branch = gen.statementToCode(block, "STACK");
   if (!branch || branch.trim() === "") {
-    branch = "    pass\n";
+    branch = gen.INDENT + "pass\n";
   }
 
-  // 1. Inyectamos las funciones globales requeridas
-  generator.definitions_["ble_rx_callbacks"] = "_ble_rx_callbacks = {}\n";
+  gen.definitions_["ble_rx_callbacks"] = "_ble_rx_callbacks = {}\n";
 
-  generator.definitions_["ble_irq_updater"] = 
+  gen.definitions_["ble_irq_updater"] =
 `def _ble_process_rx(handle):
     for u, h in _ble_handles.items():
         if h == handle and u in _ble_rx_callbacks:
             raw = _ble.gatts_read(handle).decode('utf-8', 'ignore').strip()
             _ble.gatts_write(handle, b'')
-            _ble_rx_callbacks[u](raw)\n`;
+            _ble_rx_callbacks[u](raw)
+`;
 
-  // 2. Definimos la función del evento dentro de definitions_
   const funcName = `_on_ble_recv_${uuid.replace(/[^a-zA-Z0-9]/g, "_")}`;
-  
-  let funcCode = `def ${funcName}(${varName}):\n`;
-  funcCode += branch;
+  let funcCode = `def ${funcName}(${varName}):\n` + branch;
   funcCode += `_ble_rx_callbacks['${uuid}'] = ${funcName}\n`;
 
-  // Guardamos todo dentro de definitions_
-  generator.definitions_[`ble_event_${uuid}`] = funcCode;
+  gen.definitions_[`ble_event_${uuid}`] = funcCode;
 
-  // 3. RETORNAR CADENA VACÍA (Clave para que no se pierda el código)
-  return "";
+  return ""; // correcto: el código va en definitions_
 };
+
+// Registro según la versión
+if (generator.forBlock) {
+  generator.forBlock["esp32_ble_on_receive"] = handler;
+} else {
+  generator["esp32_ble_on_receive"] = handler;
+}
 
     // ---------- GENERADORES ESP-NOW ----------
 
