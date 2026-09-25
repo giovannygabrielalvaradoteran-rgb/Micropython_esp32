@@ -127,6 +127,7 @@
       <block type="esp32_ble_ms_since_write"><field name="UUID">0x2A6E</field></block>
       <block type="esp32_ble_scan"></block>
       <block type="esp32_ble_stop_scan"></block>
+      <block type="esp32_ble_on_receive"><field name="UUID">0x2A6E</field><field name="VAR">valor</field></block>
     </category>
     <category name="📡 ESP-NOW" colour="#7c3aed">
       <block type="esp32_espnow_init"></block>
@@ -834,6 +835,19 @@ Blockly.Blocks["esp32_pwm_write"] = {
         this.setPreviousStatement(true, null);
         this.setNextStatement(true, null);
         this.setColour("#3b82f6");
+      }
+    };
+    Blockly.Blocks["esp32_ble_on_receive"] = {
+      init: function () {
+        this.appendDummyInput()
+          .appendField("⚡ Al recibir dato BLE en UUID:")
+          .appendField(new Blockly.FieldTextInput("0x2A6E"), "UUID")
+          .appendField("guardar en")
+          .appendField(new Blockly.FieldVariable("valor"), "VAR");
+        this.appendStatementInput("STACK")
+          .appendField("hacer");
+        this.setColour("#3b82f6");
+        this.setTooltip("Se ejecuta automáticamente cuando un dispositivo (PWA) envía datos por Bluetooth. ¡Ultra bajo consumo!");
       }
     };
 
@@ -2168,6 +2182,8 @@ Blockly.Python.forBlock["esp32_ble_init"] = function (block, generator) {
   code += `            except: pass\n`;
   code += `    elif event == 3:\n`;
   code += `        _ble_last_write_ms[data[1]] = time.ticks_ms()\n`;
+  code += `        if '_ble_process_rx' in globals():\n`;
+  code += `            _ble_process_rx(data[1])\n`;
   code += `_ble.irq(_ble_irq)\n`;
   return code;
 };
@@ -2282,7 +2298,32 @@ Blockly.Python.forBlock["esp32_ble_scan"] = function (block, generator) {
 Blockly.Python.forBlock["esp32_ble_stop_scan"] = function (block, generator) {
   return `_ble.gap_scan(None)\n`;
 };
+Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
+  const uuid = block.getFieldValue("UUID");
+  const varName = generator.getVariableName(block.getFieldValue("VAR"));
+  const branch = generator.statementToCode(block, "STACK");
 
+  // Inyectamos el diccionario de callbacks en las definiciones globales
+  generator.definitions_["ble_rx_callbacks"] = "_ble_rx_callbacks = {}\n";
+
+  // Inyectamos la función auxiliar para limpiar la característica tras leer
+  generator.definitions_["ble_irq_updater"] = 
+`def _ble_process_rx(handle):
+    for u, h in _ble_handles.items():
+        if h == handle and u in _ble_rx_callbacks:
+            raw = _ble.gatts_read(handle).decode('utf-8', 'ignore').strip()
+            _ble.gatts_write(handle, b'') # Limpiar buffer
+            _ble_rx_callbacks[u](raw)`;
+
+  // Definimos la función que ejecutará el contenido del bloque
+  const funcName = `_on_ble_recv_${uuid.replace(/[^a-zA-Z0-9]/g, "_")}`;
+  
+  let code = `def ${funcName}(${varName}):\n`;
+  code += branch ? branch : `    pass\n`;
+  code += `_ble_rx_callbacks['${uuid}'] = ${funcName}\n`;
+
+  return code;
+};
     // ---------- GENERADORES ESP-NOW ----------
 
     Blockly.Python.forBlock["esp32_espnow_init"] = function (block, generator) {
@@ -4117,8 +4158,10 @@ function generarCodigoCompleto() {
   const loopCode = loopBlock ? Blockly.Python.statementToCode(loopBlock, "STACK") : "";
 
   topBlocks
-    .filter(b => b.type === "procedures_defnoreturn" || b.type === "procedures_defreturn")
-    .forEach(b => Blockly.Python.blockToCode(b));
+    .filter(b => b.type !== "esp32_setup" && b.type !== "esp32_loop"
+      && b.type !== "procedures_defnoreturn" && b.type !== "procedures_defreturn")
+    .forEach(b => Blockly.Python.blockToCode(b));  // antes de finish("")
+ 
     
   const preamble = Blockly.Python.finish("").trim();
 
