@@ -2303,12 +2303,11 @@ Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
   const varName = generator.getVariableName(block.getFieldValue("VAR"));
   let branch = generator.statementToCode(block, "STACK");
   
-  // Si el bloque está vacío, aseguramos un 'pass'
   if (!branch || branch.trim() === "") {
     branch = "    pass\n";
   }
 
-  // 1. Declaramos las funciones auxiliares de interrupción en las definiciones globales
+  // 1. Inyectamos las funciones globales requeridas
   generator.definitions_["ble_rx_callbacks"] = "_ble_rx_callbacks = {}\n";
 
   generator.definitions_["ble_irq_updater"] = 
@@ -2319,18 +2318,19 @@ Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
             _ble.gatts_write(handle, b'')
             _ble_rx_callbacks[u](raw)\n`;
 
-  // 2. Inyectamos la función del evento dentro de las definiciones globales
+  // 2. Definimos la función del evento dentro de definitions_
   const funcName = `_on_ble_recv_${uuid.replace(/[^a-zA-Z0-9]/g, "_")}`;
   
   let funcCode = `def ${funcName}(${varName}):\n`;
   funcCode += branch;
   funcCode += `_ble_rx_callbacks['${uuid}'] = ${funcName}\n`;
 
+  // Guardamos todo dentro de definitions_
   generator.definitions_[`ble_event_${uuid}`] = funcCode;
 
-  // 3. Importante: Retornamos null o cadena vacía porque es un bloque de evento raíz
+  // 3. RETORNAR CADENA VACÍA (Clave para que no se pierda el código)
   return "";
-};    
+};
 
     // ---------- GENERADORES ESP-NOW ----------
 
