@@ -70,6 +70,7 @@
     <category name="⚙️ Control" colour="#333333">
       <block type="esp32_setup"></block>
       <block type="esp32_loop"></block>
+      <!--<block type="esp32_pin_on_interrupt"><field name="PIN">14</field><field name="MODE">Pin.IRQ_RISING</field></block>-->
       <block type="controls_if"></block>
       <block type="controls_if"><mutation else="1"></mutation></block>
     </category>
@@ -365,6 +366,26 @@
         this.setDeletable(true);
       }
     };
+    /*Blockly.Blocks['esp32_pin_on_interrupt'] = {
+      init: function() {
+        this.appendDummyInput()
+            .appendField("⚡ Al detectar pulso en pin")
+            .appendField(new Blockly.FieldDropdown([
+              ["14", "14"], ["15", "15"], ["2", "2"], ["4", "4"], ["5", "5"]
+           ]), "PIN")
+            .appendField("modo:")
+            .appendField(new Blockly.FieldDropdown([
+              ["Presionado (Flanco de subida)", "Pin.IRQ_RISING"],
+              ["Soltado (Flanco de bajada)", "Pin.IRQ_FALLING"],
+              ["Ambos cambios", "Pin.IRQ_RISING | Pin.IRQ_FALLING"]
+           ]), "MODE");
+        this.appendStatementInput("STACK")
+          .appendField("hacer:");
+        this.setInputsInline(true);
+        this.setColour(120); // Verde para interrupciones físicas
+        this.setTooltip("Ejecuta el código inmediatamente cuando un pin digital cambia de estado (IRQ).");
+      }
+    };*/
 
     Blockly.Blocks["esp32_digital_write"] = {
       init: function () {
