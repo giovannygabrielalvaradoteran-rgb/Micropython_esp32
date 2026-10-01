@@ -2178,7 +2178,7 @@ except OSError:
 Blockly.Python.forBlock["esp32_ble_init"] = function (block, generator) {
   generator.definitions_["import_bluetooth"] = "import bluetooth";
   generator.definitions_["import_time"] = "import time";
-  
+  generator.definitions_["import_micropython_irq"] = "import micropython\nmicropython.alloc_emergency_exception_buf(100)";
   const name = block.getFieldValue("NAME").replace(/'/g, "\\'");
   
   let code = `_ble = bluetooth.BLE()\n`;
@@ -2206,7 +2206,7 @@ Blockly.Python.forBlock["esp32_ble_init"] = function (block, generator) {
   code += `    elif event == 3:\n`;
   code += `        _ble_last_write_ms[data[1]] = time.ticks_ms()\n`;
   code += `        if '_ble_process_rx' in globals():\n`;
-  code += `            _ble_process_rx(data[1])\n`;
+  code += `            micropython.schedule(_ble_process_rx, data[1])\n`;
   code += `_ble.irq(_ble_irq)\n`;
   return code;
 };
@@ -2326,9 +2326,10 @@ Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
   const varName = generator.getVariableName(block.getFieldValue("VAR"));
   
   // Capturamos el código de los bloques que están dentro del 'hacer'
-  let branch = generator.statementToCode(block, "STACK");
+  /*let branch = generator.statementToCode(block, "STACK");
   if (!branch || branch.trim() === "") {
-    branch = "    pass\n";
+    branch = "    pass\n";*/
+  const branch = _reindentBody(generator, generator.statementToCode(block, "STACK"), "    ");
   }
 
   // 1. Inyectamos la estructura base del sistema BLE
