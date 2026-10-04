@@ -2323,19 +2323,18 @@ Blockly.Python.forBlock["esp32_ble_stop_scan"] = function (block, generator) {
 };
 Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
   const uuid = block.getFieldValue("UUID");
-  const varName = generator.getVariableName(block.getFieldValue("VAR"));
-  
-  // Capturamos el código de los bloques que están dentro del 'hacer'
-  /*let branch = generator.statementToCode(block, "STACK");
-  if (!branch || branch.trim() === "") {
-    branch = "    pass\n";*/
+  const varName = generator.getVariableName
+    ? generator.getVariableName(block.getFieldValue("VAR"))
+    : generator.nameDB_.getName(block.getFieldValue("VAR"), Blockly.Names.NameType.VARIABLE);
+
+  // Capturamos el código de los bloques que están dentro del 'hacer', con la
+  // indentación correcta (evita el IndentationError con contenido anidado como si/sino si).
   const branch = _reindentBody(generator, generator.statementToCode(block, "STACK"), "    ");
-  }
 
   // 1. Inyectamos la estructura base del sistema BLE
   generator.definitions_["ble_rx_callbacks"] = "_ble_rx_callbacks = {}\n";
 
-  generator.definitions_["ble_irq_updater"] = 
+  generator.definitions_["ble_irq_updater"] =
 `def _ble_process_rx(handle):
     for u, h in _ble_handles.items():
         if h == handle and u in _ble_rx_callbacks:
@@ -2346,7 +2345,7 @@ Blockly.Python.forBlock["esp32_ble_on_receive"] = function (block, generator) {
   // 2. Construimos e inyectamos la función específica del evento
   const cleanUuid = uuid.replace(/[^a-zA-Z0-9]/g, "_");
   const funcName = `_on_ble_recv_${cleanUuid}`;
-  
+
   let funcCode = `def ${funcName}(${varName}):\n`;
   funcCode += branch;
   funcCode += `_ble_rx_callbacks['${uuid}'] = ${funcName}\n`;
